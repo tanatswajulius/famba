@@ -1,0 +1,1 @@
+#!/usr/bin/env bash\nuvicorn app.main:app --reload --port 8000\n

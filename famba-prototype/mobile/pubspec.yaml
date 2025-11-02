@@ -1,0 +1,28 @@
+name: famba_rider
+environment:
+  sdk: ">=3.5.0 <4.0.0"
+dependencies:
+  flutter:
+    sdk: flutter
+  http: ^1.2.2
+  provider: ^6.1.2
+  shared_preferences: ^2.2.3
+  connectivity_plus: ^6.0.3
+  flutter_native_splash: ^2.4.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+flutter:
+  assets:
+    - assets/images/famba.png
+
+flutter_native_splash:
+  color: "#4CAF50"
+  image: assets/images/famba.png
+  android: true
+  ios: true
+  web: true
+  android_gravity: center
+  ios_content_mode: center
