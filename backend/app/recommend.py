@@ -1,7 +1,7 @@
 CORRIDORS = {
-    "CBD":     {"eta_bias_min": 2, "price_bias": 1.0},
-    "Campus":  {"eta_bias_min": 1, "price_bias": 0.9},
-    "Retail":  {"eta_bias_min": 3, "price_bias": 1.1},
+    "CBD": {"eta_bias_min": 2, "price_bias": 1.0},
+    "Campus": {"eta_bias_min": 1, "price_bias": 0.9},
+    "Retail": {"eta_bias_min": 3, "price_bias": 1.1},
 }
 
 
@@ -27,8 +27,9 @@ def estimate_price_usd(
     peak: bool = False
 ) -> float:
     # seed around ~$1.50 fares in pilot
-    base = 0.70 + 0.35 * distance_km
-    price = base * CORRIDORS[corridor]["price_bias"]
+    base = 0.70
+    dist = 0.35 * distance_km
+    price = (base + dist) * CORRIDORS[corridor]["price_bias"]
     if peak:
         price *= 1.15
-    return round(price, 2)
+    return round(price, 2), round(base, 2), round(dist, 2)

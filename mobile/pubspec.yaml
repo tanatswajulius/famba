@@ -9,12 +9,15 @@ dependencies:
   shared_preferences: ^2.2.3
   connectivity_plus: ^6.0.3
   flutter_native_splash: ^2.4.0
+  flutter_map: ^6.1.0
+  latlong2: ^0.9.1
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
 
 flutter:
+  uses-material-design: true
   assets:
     - assets/images/famba.png
 

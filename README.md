@@ -42,10 +42,15 @@ cd backend
 pip install -r requirements.txt
 ```
 
-3. Run the backend:
+3. Copy env file and set your credentials (defaults are fine for local):
 ```bash
-./run.sh
-# or
+cp env.example .env
+```
+
+4. Run the backend:
+```bash
+./run_local.sh
+# or manual:
 uvicorn app.main:app --reload
 ```
 
@@ -58,17 +63,29 @@ The API will be available at `http://localhost:8000`
 cd mobile
 ```
 
-2. Install Flutter dependencies:
+2. (Optional) Copy web env file for convenience:
+```bash
+cp env.web.example .env.web
+```
+
+3. Install Flutter dependencies:
 ```bash
 flutter pub get
 ```
 
-3. Generate splash screen assets:
+4. Generate splash screen assets:
 ```bash
 flutter pub run flutter_native_splash:create
 ```
 
-4. Run the app:
+5. Run the app (web/Chrome):
+```bash
+./run_web.sh
+# or manual
+flutter run -d chrome --dart-define API_BASE=http://localhost:8000 --dart-define API_USER=demo --dart-define API_PASS=demo123
+```
+
+6. Run on mobile devices:
 ```bash
 flutter run
 # or for web

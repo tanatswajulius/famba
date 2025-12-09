@@ -104,6 +104,12 @@
       "languageVersion": "3.8"
     },
     {
+      "name": "flutter_map",
+      "rootUri": "file:///Users/tanatswajuliusmangena/.pub-cache/hosted/pub.dev/flutter_map-6.2.1",
+      "packageUri": "lib/",
+      "languageVersion": "3.0"
+    },
+    {
       "name": "flutter_native_splash",
       "rootUri": "file:///Users/tanatswajuliusmangena/.pub-cache/hosted/pub.dev/flutter_native_splash-2.4.7",
       "packageUri": "lib/",
@@ -146,6 +152,18 @@
       "languageVersion": "3.0"
     },
     {
+      "name": "intl",
+      "rootUri": "file:///Users/tanatswajuliusmangena/.pub-cache/hosted/pub.dev/intl-0.20.2",
+      "packageUri": "lib/",
+      "languageVersion": "3.3"
+    },
+    {
+      "name": "latlong2",
+      "rootUri": "file:///Users/tanatswajuliusmangena/.pub-cache/hosted/pub.dev/latlong2-0.9.1",
+      "packageUri": "lib/",
+      "languageVersion": "3.0"
+    },
+    {
       "name": "leak_tracker",
       "rootUri": "file:///Users/tanatswajuliusmangena/.pub-cache/hosted/pub.dev/leak_tracker-11.0.2",
       "packageUri": "lib/",
@@ -164,6 +182,18 @@
       "languageVersion": "3.2"
     },
     {
+      "name": "lists",
+      "rootUri": "file:///Users/tanatswajuliusmangena/.pub-cache/hosted/pub.dev/lists-1.0.1",
+      "packageUri": "lib/",
+      "languageVersion": "2.12"
+    },
+    {
+      "name": "logger",
+      "rootUri": "file:///Users/tanatswajuliusmangena/.pub-cache/hosted/pub.dev/logger-2.6.2",
+      "packageUri": "lib/",
+      "languageVersion": "2.17"
+    },
+    {
       "name": "matcher",
       "rootUri": "file:///Users/tanatswajuliusmangena/.pub-cache/hosted/pub.dev/matcher-0.12.17",
       "packageUri": "lib/",
@@ -178,6 +208,12 @@
     {
       "name": "meta",
       "rootUri": "file:///Users/tanatswajuliusmangena/.pub-cache/hosted/pub.dev/meta-1.16.0",
+      "packageUri": "lib/",
+      "languageVersion": "2.12"
+    },
+    {
+      "name": "mgrs_dart",
+      "rootUri": "file:///Users/tanatswajuliusmangena/.pub-cache/hosted/pub.dev/mgrs_dart-2.0.0",
       "packageUri": "lib/",
       "languageVersion": "2.12"
     },
@@ -236,10 +272,22 @@
       "languageVersion": "3.0"
     },
     {
+      "name": "polylabel",
+      "rootUri": "file:///Users/tanatswajuliusmangena/.pub-cache/hosted/pub.dev/polylabel-1.0.1",
+      "packageUri": "lib/",
+      "languageVersion": "2.13"
+    },
+    {
       "name": "posix",
       "rootUri": "file:///Users/tanatswajuliusmangena/.pub-cache/hosted/pub.dev/posix-6.0.3",
       "packageUri": "lib/",
       "languageVersion": "3.0"
+    },
+    {
+      "name": "proj4dart",
+      "rootUri": "file:///Users/tanatswajuliusmangena/.pub-cache/hosted/pub.dev/proj4dart-2.1.0",
+      "packageUri": "lib/",
+      "languageVersion": "2.12"
     },
     {
       "name": "provider",
@@ -338,6 +386,12 @@
       "languageVersion": "3.5"
     },
     {
+      "name": "unicode",
+      "rootUri": "file:///Users/tanatswajuliusmangena/.pub-cache/hosted/pub.dev/unicode-0.3.1",
+      "packageUri": "lib/",
+      "languageVersion": "2.12"
+    },
+    {
       "name": "universal_io",
       "rootUri": "file:///Users/tanatswajuliusmangena/.pub-cache/hosted/pub.dev/universal_io-2.2.2",
       "packageUri": "lib/",
@@ -360,6 +414,12 @@
       "rootUri": "file:///Users/tanatswajuliusmangena/.pub-cache/hosted/pub.dev/web-1.1.1",
       "packageUri": "lib/",
       "languageVersion": "3.4"
+    },
+    {
+      "name": "wkt_parser",
+      "rootUri": "file:///Users/tanatswajuliusmangena/.pub-cache/hosted/pub.dev/wkt_parser-2.0.0",
+      "packageUri": "lib/",
+      "languageVersion": "2.12"
     },
     {
       "name": "xdg_directories",

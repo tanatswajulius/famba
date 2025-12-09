@@ -5,6 +5,14 @@ import 'offline_queue.dart';
 
 class Api {
   static String base = const String.fromEnvironment('API_BASE', defaultValue: 'http://localhost:8000');
+  static String basicUser = const String.fromEnvironment('API_USER', defaultValue: 'demo');
+  static String basicPass = const String.fromEnvironment('API_PASS', defaultValue: 'demo123');
+
+  static String get _authHeader => 'Basic ${base64Encode(utf8.encode('$basicUser:$basicPass'))}';
+  static Map<String, String> _headers() => {
+        'Content-Type': 'application/json',
+        'Authorization': _authHeader,
+      };
 
   static Future<Map<String, dynamic>> quote({
     required String pickup,
@@ -13,7 +21,7 @@ class Api {
     bool peak = false,
   }) async {
     final res = await http.post(Uri.parse('$base/quote'),
-      headers: {'Content-Type':'application/json'},
+      headers: _headers(),
       body: jsonEncode({'pickup_text': pickup, 'drop_text': drop, 'distance_km': distanceKm, 'peak': peak}));
     return jsonDecode(res.body);
   }
@@ -23,14 +31,20 @@ class Api {
     required String drop,
     required double distanceKm,
     required String riderName,
+    String? driverId,
+    double? fareUsd,
+    String? paymentMethod,
   }) async {
     final url = '$base/jobs';
-    final headers = {'Content-Type': 'application/json'};
+    final headers = _headers();
     final body = jsonEncode({
       'pickup_text': pickup,
       'drop_text': drop,
       'distance_km': distanceKm,
-      'rider_name': riderName
+      'rider_name': riderName,
+      if (driverId != null) 'driver_id': driverId,
+      if (fareUsd != null) 'fare_usd': fareUsd,
+      if (paymentMethod != null) 'payment_method': paymentMethod,
     });
 
     try {
@@ -70,7 +84,7 @@ class Api {
   }
 
   static Future<Map<String, dynamic>> getJob(String id) async {
-    final res = await http.get(Uri.parse('$base/jobs/$id'));
+    final res = await http.get(Uri.parse('$base/jobs/$id'), headers: _headers());
     return jsonDecode(res.body);
   }
 
@@ -80,7 +94,7 @@ class Api {
   }) async {
     final res = await http.post(
       Uri.parse('$base/issues'),
-      headers: {'Content-Type': 'application/json'},
+      headers: _headers(),
       body: jsonEncode({'job_id': jobId, 'issue_type': issueType}),
     );
     return jsonDecode(res.body);
@@ -91,8 +105,27 @@ class Api {
   }) async {
     final res = await http.post(
       Uri.parse('$base/recommend'),
-      headers: {'Content-Type': 'application/json'},
+      headers: _headers(),
       body: jsonEncode({'corridor': corridor}),
+    );
+    return jsonDecode(res.body);
+  }
+
+  static Future<Map<String, dynamic>> rateRide({
+    required String jobId,
+    required String driverId,
+    required double rating,
+    String? comment,
+  }) async {
+    final res = await http.post(
+      Uri.parse('$base/ratings'),
+      headers: _headers(),
+      body: jsonEncode({
+        'job_id': jobId,
+        'driver_id': driverId,
+        'rating': rating,
+        'comment': comment,
+      }),
     );
     return jsonDecode(res.body);
   }
