@@ -132,3 +132,58 @@ def submit_rating(payload: dict, _auth=Depends(require_auth)):
 @app.get("/ratings")
 def ratings(_auth=Depends(require_auth)):
     return list_ratings()
+
+
+# Promo codes (mock validation)
+PROMO_CODES = {
+    "FAMBA50": {"discount": 50, "max_discount": 5.00, "valid": True},
+    "RIDE25": {"discount": 25, "max_discount": 3.00, "valid": True},
+    "FIRST10": {"discount": 10, "max_discount": 2.00, "valid": True},
+}
+
+
+@app.post("/promo/validate")
+def validate_promo(payload: dict, _auth=Depends(require_auth)):
+    code = payload.get("code", "").upper()
+    if code in PROMO_CODES:
+        promo = PROMO_CODES[code]
+        return {
+            "valid": True,
+            "code": code,
+            "discount": promo["discount"],
+            "max_discount": promo["max_discount"],
+            "message": f"{promo['discount']}% off applied!",
+        }
+    return {
+        "valid": False,
+        "code": code,
+        "message": "Invalid or expired promo code",
+    }
+
+
+@app.post("/jobs/{job_id}/cancel")
+def cancel_job(job_id: str, payload: dict, _auth=Depends(require_auth)):
+    job = get_job(job_id)
+    if not job:
+        raise HTTPException(404, "Job not found")
+    
+    reason = payload.get("reason", "unknown")
+    update_job(job_id, status="cancelled", cancel_reason=reason)
+    return {"ok": True, "job_id": job_id, "reason": reason}
+
+
+@app.post("/jobs/schedule")
+def schedule_job(payload: dict, _auth=Depends(require_auth)):
+    # Create a scheduled job (mock implementation)
+    job = create_job(payload)
+    update_job(
+        job["id"],
+        status="scheduled",
+        scheduled_time=payload.get("scheduled_time"),
+    )
+    return {
+        "ok": True,
+        "job_id": job["id"],
+        "scheduled_time": payload.get("scheduled_time"),
+        "message": "Ride scheduled successfully",
+    }

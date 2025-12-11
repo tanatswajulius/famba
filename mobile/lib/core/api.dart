@@ -129,4 +129,50 @@ class Api {
     );
     return jsonDecode(res.body);
   }
+
+  static Future<Map<String, dynamic>> validatePromo({
+    required String code,
+  }) async {
+    final res = await http.post(
+      Uri.parse('$base/promo/validate'),
+      headers: _headers(),
+      body: jsonEncode({'code': code}),
+    );
+    return jsonDecode(res.body);
+  }
+
+  static Future<Map<String, dynamic>> cancelJob({
+    required String jobId,
+    required String reason,
+  }) async {
+    final res = await http.post(
+      Uri.parse('$base/jobs/$jobId/cancel'),
+      headers: _headers(),
+      body: jsonEncode({'reason': reason}),
+    );
+    return jsonDecode(res.body);
+  }
+
+  static Future<Map<String, dynamic>> scheduleJob({
+    required String pickup,
+    required String drop,
+    required double distanceKm,
+    required String riderName,
+    required DateTime scheduledTime,
+    String? paymentMethod,
+  }) async {
+    final res = await http.post(
+      Uri.parse('$base/jobs/schedule'),
+      headers: _headers(),
+      body: jsonEncode({
+        'pickup_text': pickup,
+        'drop_text': drop,
+        'distance_km': distanceKm,
+        'rider_name': riderName,
+        'scheduled_time': scheduledTime.toIso8601String(),
+        'payment_method': paymentMethod,
+      }),
+    );
+    return jsonDecode(res.body);
+  }
 }

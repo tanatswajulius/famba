@@ -5,6 +5,8 @@ import 'package:latlong2/latlong.dart';
 import '../core/api.dart';
 import '../models/job.dart';
 import '../widgets/sos_button.dart';
+import '../widgets/cancel_ride_sheet.dart';
+import '../main.dart';
 
 const _statusSteps = [
   "driver_assigned",
@@ -16,8 +18,7 @@ const _statusSteps = [
 
 const _pickupPoint = LatLng(-17.8292, 31.0522);
 const _dropoffPoint = LatLng(-17.8200, 31.0490);
-const _mapTileKey =
-    String.fromEnvironment('MAP_TILE_KEY', defaultValue: '');
+const _mapTileKey = String.fromEnvironment('MAP_TILE_KEY', defaultValue: '');
 
 class TrackingScreen extends StatefulWidget {
   const TrackingScreen({super.key});
@@ -25,15 +26,16 @@ class TrackingScreen extends StatefulWidget {
   State<TrackingScreen> createState() => _TrackingScreenState();
 }
 
-class _TrackingScreenState extends State<TrackingScreen> {
+class _TrackingScreenState extends State<TrackingScreen>
+    with SingleTickerProviderStateMixin {
   String jobId = "";
   Job? job;
   Timer? timer;
   bool _hasRated = false;
+  double _sheetSize = 0.4;
 
   @override
   void didChangeDependencies() {
-    // Accept either a String jobId or a Map with jobId
     final arg = ModalRoute.of(context)?.settings.arguments;
     if (arg is String) {
       jobId = arg;
@@ -57,8 +59,12 @@ class _TrackingScreenState extends State<TrackingScreen> {
       if (j.status == "complete") timer?.cancel();
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('Tracking error: $e')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Tracking error: $e'),
+          backgroundColor: FambaColors.error,
+        ),
+      );
     }
   }
 
@@ -70,7 +76,6 @@ class _TrackingScreenState extends State<TrackingScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     if (jobId.isEmpty) {
       return Scaffold(
         appBar: AppBar(title: const Text("Track Ride")),
@@ -79,19 +84,179 @@ class _TrackingScreenState extends State<TrackingScreen> {
     }
 
     return Scaffold(
-      appBar: AppBar(title: Text("Trip $jobId")),
       body: job == null
-          ? const Center(child: CircularProgressIndicator())
+          ? const Center(
+              child: CircularProgressIndicator(color: FambaColors.primary),
+            )
           : Stack(
                   children: [
-                Positioned.fill(child: _buildMap(theme)),
-                _buildBottomSheet(theme),
+                // Full-bleed map
+                Positioned.fill(child: _buildMap()),
+                // Status chip overlay
+                Positioned(
+                  top: MediaQuery.of(context).padding.top + 12,
+                  left: 16,
+                  right: 16,
+                  child: _buildTopBar(),
+                ),
+                // Bottom sheet
+                _buildBottomSheet(),
               ],
             ),
     );
   }
 
-  Widget _buildMap(ThemeData theme) {
+  Widget _buildTopBar() {
+    return Row(
+                          children: [
+        GestureDetector(
+          onTap: () {
+            if (job?.status == "complete") {
+              Navigator.popUntil(context, ModalRoute.withName('/home'));
+            } else {
+              // Show confirmation dialog
+              showDialog(
+                context: context,
+                builder: (ctx) => AlertDialog(
+                  title: const Text("Leave tracking?"),
+                  content: const Text(
+                      "Your ride will continue. You can come back anytime."),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(ctx),
+                      child: const Text("Stay"),
+                    ),
+                    TextButton(
+                      onPressed: () {
+                        Navigator.pop(ctx);
+                        Navigator.popUntil(context, ModalRoute.withName('/home'));
+                      },
+                      child: const Text("Leave"),
+                    ),
+                  ],
+                ),
+              );
+            }
+          },
+          child: Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(14),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.08),
+                  blurRadius: 12,
+                ),
+              ],
+            ),
+            child: const Icon(Icons.arrow_back_rounded, size: 22),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+                                child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white,
+              borderRadius: BorderRadius.circular(14),
+                                    boxShadow: [
+                                      BoxShadow(
+                  color: Colors.black.withOpacity(0.08),
+                  blurRadius: 12,
+                                      ),
+                                    ],
+                                  ),
+                                  child: Row(
+                                    children: [
+                Container(
+                  width: 8,
+                  height: 8,
+                  decoration: BoxDecoration(
+                    color: _getStatusColor(),
+                    shape: BoxShape.circle,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    _getStatusLabel(),
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: FambaColors.textPrimary,
+                    ),
+                  ),
+                ),
+                Text(
+                  _getEtaLabel(),
+                                          style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: FambaColors.primary,
+                  ),
+                ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                          ],
+    );
+  }
+
+  Color _getStatusColor() {
+    switch (job?.status) {
+      case "driver_assigned":
+        return Colors.orange;
+      case "enroute":
+        return Colors.blue;
+      case "arrived":
+        return FambaColors.success;
+      case "riding":
+        return FambaColors.primary;
+      case "complete":
+        return FambaColors.success;
+      default:
+        return Colors.grey;
+    }
+  }
+
+  String _getStatusLabel() {
+    switch (job?.status) {
+      case "driver_assigned":
+        return "Finding your driver...";
+      case "enroute":
+        return "Driver is on the way";
+      case "arrived":
+        return "Driver has arrived!";
+      case "riding":
+        return "Enjoy your ride";
+      case "complete":
+        return "Ride complete";
+      default:
+        return "Tracking...";
+    }
+  }
+
+  String _getEtaLabel() {
+    switch (job?.status) {
+      case "driver_assigned":
+        return "~3 min";
+      case "enroute":
+        return "~2 min";
+      case "arrived":
+        return "Now";
+      case "riding":
+        return "~5 min";
+      case "complete":
+        return "Done";
+      default:
+        return "";
+    }
+  }
+
+  Widget _buildMap() {
     final driverLat = job?.driverLat ?? _pickupPoint.latitude;
     final driverLng = job?.driverLng ?? _pickupPoint.longitude;
     final pickupLat = job?.pickupLat ?? _pickupPoint.latitude;
@@ -103,278 +268,105 @@ class _TrackingScreenState extends State<TrackingScreen> {
 
     final hasTileKey = _mapTileKey.isNotEmpty && _mapTileKey != 'get-your-key';
 
-    return Stack(
-                          children: [
-        FlutterMap(
-          options: MapOptions(
-            initialCenter: LatLng(centerLat, centerLng),
-            initialZoom: 13.3,
-          ),
-                                children: [
-            TileLayer(
-              urlTemplate: hasTileKey
-                  ? 'https://api.maptiler.com/maps/streets-v2-light/{z}/{x}/{y}.png?key=$_mapTileKey'
-                  : 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-              subdomains: hasTileKey ? const [] : const ['a', 'b', 'c'],
-              userAgentPackageName: 'com.famba.rider',
-            ),
-            PolylineLayer(
-              polylines: [
-                Polyline(
-                  points: [
-                    LatLng(pickupLat, pickupLng),
-                    LatLng(dropLat, dropLng),
-                  ],
-                  strokeWidth: 5,
-                  color: theme.colorScheme.primary.withOpacity(0.7),
-                ),
-              ],
-            ),
-            MarkerLayer(
-              markers: [
-                Marker(
-                  width: 52,
-                  height: 52,
-                  point: LatLng(driverLat, driverLng),
-                  child: _PulsingPin(color: theme.colorScheme.primary),
-                ),
-                Marker(
-                  width: 36,
-                  height: 36,
-                  point: LatLng(pickupLat, pickupLng),
-                  child: _mapBadge(
-                    theme,
-                    icon: Icons.radio_button_checked,
-                    color: Colors.green.shade600,
-                  ),
-                ),
-                Marker(
-                  width: 36,
-                  height: 36,
-                  point: LatLng(dropLat, dropLng),
-                  child: _mapBadge(
-                    theme,
-                    icon: Icons.flag,
-                    color: Colors.red.shade600,
-                                    ),
-                                  ),
-                                ],
-                              ),
-          ],
-                            ),
-                              Positioned(
-                                top: 12,
-                                left: 12,
-          child: _glassChip(
-            theme,
-            icon: Icons.navigation,
-            label: "Tracking",
-          ),
+    return FlutterMap(
+      options: MapOptions(
+        initialCenter: LatLng(centerLat, centerLng),
+        initialZoom: 14,
+      ),
+      children: [
+        TileLayer(
+          urlTemplate: hasTileKey
+              ? 'https://api.maptiler.com/maps/streets-v2-light/{z}/{x}/{y}.png?key=$_mapTileKey'
+              : 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+          subdomains: hasTileKey ? const [] : const ['a', 'b', 'c'],
+          userAgentPackageName: 'com.famba.rider',
         ),
-        Positioned(
-          bottom: 12,
-          left: 12,
-          child: _glassChip(
-            theme,
-            icon: Icons.map,
-            label: "Harare • Live Map",
-          ),
+        PolylineLayer(
+          polylines: [
+            Polyline(
+              points: [
+                LatLng(pickupLat, pickupLng),
+                LatLng(dropLat, dropLng),
+              ],
+              strokeWidth: 4,
+              color: FambaColors.primary.withOpacity(0.6),
+            ),
+          ],
+        ),
+        MarkerLayer(
+          markers: [
+            // Driver marker with pulse
+            Marker(
+              width: 60,
+              height: 60,
+              point: LatLng(driverLat, driverLng),
+              child: _PulsingDriverMarker(),
+            ),
+            // Pickup marker
+            Marker(
+              width: 40,
+              height: 40,
+              point: LatLng(pickupLat, pickupLng),
+              child: _buildMapPin(FambaColors.primary, Icons.radio_button_checked),
+            ),
+            // Dropoff marker
+            Marker(
+              width: 40,
+              height: 40,
+              point: LatLng(dropLat, dropLng),
+              child: _buildMapPin(FambaColors.error, Icons.flag_rounded),
+            ),
+          ],
         ),
       ],
     );
   }
 
-  Widget _glassChip(ThemeData theme, {required IconData icon, required String label}) {
+  Widget _buildMapPin(Color color, IconData icon) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                                  decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.85),
-        borderRadius: BorderRadius.circular(18),
-                                    boxShadow: [
-                                      BoxShadow(
-            color: Colors.black.withOpacity(0.08),
-            blurRadius: 6,
-                                      ),
-                                    ],
-                                  ),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-          Icon(icon, size: 16, color: theme.colorScheme.primary),
-          const SizedBox(width: 6),
-          Text(
-            label,
-            style: const TextStyle(fontWeight: FontWeight.w600),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _mapBadge(ThemeData theme,
-      {required IconData icon, required Color color}) {
-    return Container(
-      width: 32,
-      height: 32,
       decoration: BoxDecoration(
         color: Colors.white,
         shape: BoxShape.circle,
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.15),
-            blurRadius: 6,
+            color: color.withOpacity(0.3),
+            blurRadius: 8,
+            spreadRadius: 2,
           ),
         ],
       ),
-      child: Icon(icon, size: 18, color: color),
+      child: Center(
+        child: Icon(icon, color: color, size: 22),
+      ),
     );
   }
 
-  Widget _buildStatusProgress(ThemeData theme) {
-    final current = job!.status;
-    final currentIndex =
-        _statusSteps.indexWhere((s) => s == current).clamp(0, _statusSteps.length - 1);
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Text("Status: ",
-                style: TextStyle(
-                    fontSize: 16, color: theme.colorScheme.onSurface.withOpacity(0.7))),
-            Text(
-              _labelForStatus(current),
-              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-          ],
-        ),
-        const SizedBox(height: 12),
-        Row(
-          children: List.generate(_statusSteps.length, (index) {
-            final isActive = index <= currentIndex;
-            final isLast = index == _statusSteps.length - 1;
-            return Expanded(
-              child: Row(
-                children: [
-                  _stepDot(theme, active: isActive, label: _labelShort(_statusSteps[index])),
-                  if (!isLast)
-                    Expanded(
-                      child: Container(
-                        height: 4,
-                        decoration: BoxDecoration(
-                          color: isActive
-                              ? theme.colorScheme.primary
-                              : theme.colorScheme.surfaceVariant,
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                      ),
-                    ),
-                ],
-              ),
-            );
-          }),
-        ),
-      ],
-    );
-  }
-
-  Widget _stepDot(ThemeData theme, {required bool active, required String label}) {
-    return Column(
-                        children: [
-        AnimatedContainer(
-          duration: const Duration(milliseconds: 250),
-          width: 18,
-          height: 18,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: active ? theme.colorScheme.primary : theme.colorScheme.surfaceVariant,
-            boxShadow: active
-                ? [
-                    BoxShadow(
-                      color: theme.colorScheme.primary.withOpacity(0.4),
-                      blurRadius: 8,
-                    )
-                  ]
-                : null,
-          ),
-        ),
-        const SizedBox(height: 4),
-        Text(label,
-                            style: TextStyle(
-              fontSize: 12,
-              color: active
-                  ? theme.colorScheme.onSurface
-                  : theme.colorScheme.onSurface.withOpacity(0.6),
-            )),
-      ],
-    );
-  }
-
-  String _labelForStatus(String s) {
-    switch (s) {
-      case "driver_assigned":
-        return "Driver assigned";
-      case "enroute":
-        return "Driver en route";
-      case "arrived":
-        return "Driver arrived";
-      case "riding":
-        return "Riding";
-      case "complete":
-        return "Complete";
-      default:
-        return s;
-    }
-  }
-
-  String _labelShort(String s) {
-    switch (s) {
-      case "driver_assigned":
-        return "Assign";
-      case "enroute":
-        return "Enroute";
-      case "arrived":
-        return "Arrived";
-      case "riding":
-        return "Ride";
-      case "complete":
-        return "Done";
-      default:
-        return s;
-    }
-  }
-
-  Widget _buildBottomSheet(ThemeData theme) {
-    final status = job!.status;
-    final inRide = status == "riding";
-    final isComplete = status == "complete";
-    final arrived = status == "arrived";
+  Widget _buildBottomSheet() {
+    final isComplete = job?.status == "complete";
 
     return DraggableScrollableSheet(
-      initialChildSize: 0.38,
-      minChildSize: 0.28,
+      initialChildSize: isComplete ? 0.55 : 0.42,
+      minChildSize: 0.2,
       maxChildSize: 0.9,
       builder: (context, controller) {
         return Container(
-          decoration: BoxDecoration(
+          decoration: const BoxDecoration(
             color: Colors.white,
-            borderRadius: const BorderRadius.only(
-              topLeft: Radius.circular(18),
-              topRight: Radius.circular(18),
-            ),
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.08),
-                blurRadius: 12,
-                offset: const Offset(0, -2),
-                          ),
-                        ],
-                      ),
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                color: Colors.black12,
+                blurRadius: 20,
+                offset: Offset(0, -4),
+              ),
+            ],
+          ),
           child: ListView(
             controller: controller,
+            padding: const EdgeInsets.symmetric(horizontal: 20),
             children: [
+              const SizedBox(height: 12),
+              // Handle bar
               Center(
                 child: Container(
                   width: 40,
@@ -385,46 +377,31 @@ class _TrackingScreenState extends State<TrackingScreen> {
                   ),
                 ),
               ),
-              const SizedBox(height: 12),
-              _buildStatusProgress(theme),
-              const SizedBox(height: 12),
-              if (job!.driver != null && !inRide && !isComplete)
-                _buildDriverRow(theme),
-              if (inRide && !isComplete) _buildInRideRow(theme),
-              if (arrived && !isComplete) _buildArrivedActions(theme),
-              if (!isComplete) ...[
-                const SizedBox(height: 12),
+              const SizedBox(height: 20),
+              // Status progress
+              _buildStatusProgress(),
+              const SizedBox(height: 20),
+              // Content based on status
+              if (isComplete)
+                _buildCompleteSummary()
+              else ...[
+                if (job?.driver != null) _buildDriverCard(),
+                const SizedBox(height: 16),
+                _buildQuickActions(),
+                const SizedBox(height: 16),
                 Row(
                   children: [
                     Expanded(
-                      child: _glassChip(theme,
-                          icon: Icons.timer, label: "ETA ~2 min"),
+                      child: _cancelButton(),
                     ),
-                    const SizedBox(width: 8),
+                    const SizedBox(width: 12),
                     Expanded(
-                      child: _glassChip(theme,
-                          icon: Icons.safety_check, label: "Helmet check ✓"),
+                      child: SosButton(jobId: jobId),
                     ),
                   ],
                 ),
-                const SizedBox(height: 16),
-                      SosButton(jobId: jobId),
-                const SizedBox(height: 12),
-                    ],
-              if (isComplete)
-                      SizedBox(
-                        width: double.infinity,
-                        child: ElevatedButton(
-                          onPressed: () => Navigator.popUntil(
-                              context, ModalRoute.withName('/home')),
-                          child: const Text("Done"),
-                        ),
-                      ),
-              if (isComplete) ...[
-                const SizedBox(height: 12),
-                _buildCompleteSummary(theme),
-                const SizedBox(height: 12),
               ],
+              const SizedBox(height: 24),
             ],
           ),
         );
@@ -432,30 +409,506 @@ class _TrackingScreenState extends State<TrackingScreen> {
     );
   }
 
-  Widget _buildArrivedActions(ThemeData theme) {
+  Widget _buildStatusProgress() {
+    final currentIndex = _statusSteps
+        .indexWhere((s) => s == job?.status)
+        .clamp(0, _statusSteps.length - 1);
+
+    return Row(
+      children: List.generate(_statusSteps.length * 2 - 1, (index) {
+        if (index.isOdd) {
+          // Connector line
+          final stepIndex = index ~/ 2;
+          final isActive = stepIndex < currentIndex;
+          return Expanded(
+            child: Container(
+              height: 3,
+              decoration: BoxDecoration(
+                color: isActive ? FambaColors.primary : Colors.grey.shade200,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          );
+        } else {
+          // Step dot
+          final stepIndex = index ~/ 2;
+          final isActive = stepIndex <= currentIndex;
+          final isCurrent = stepIndex == currentIndex;
+          return Column(
+            children: [
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 300),
+                width: isCurrent ? 28 : 20,
+                height: isCurrent ? 28 : 20,
+                decoration: BoxDecoration(
+                  color: isActive ? FambaColors.primary : Colors.grey.shade200,
+                  shape: BoxShape.circle,
+                  boxShadow: isCurrent
+                      ? [
+                          BoxShadow(
+                            color: FambaColors.primary.withOpacity(0.3),
+                            blurRadius: 8,
+                            spreadRadius: 2,
+                          ),
+                        ]
+                      : null,
+                ),
+                child: isActive
+                    ? const Icon(Icons.check_rounded, color: Colors.white, size: 14)
+                    : null,
+              ),
+              const SizedBox(height: 6),
+              Text(
+                _getStepLabel(stepIndex),
+                style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: isActive ? FontWeight.w600 : FontWeight.w500,
+                  color: isActive ? FambaColors.textPrimary : FambaColors.textSecondary,
+                ),
+              ),
+            ],
+          );
+        }
+      }),
+    );
+  }
+
+  String _getStepLabel(int index) {
+    switch (index) {
+      case 0:
+        return "Matched";
+      case 1:
+        return "En route";
+      case 2:
+        return "Arrived";
+      case 3:
+        return "Riding";
+      case 4:
+        return "Done";
+      default:
+        return "";
+    }
+  }
+
+  Widget _buildDriverCard() {
+    final driver = job!.driver!;
+    final isArrived = job?.status == "arrived";
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: isArrived ? FambaColors.success.withOpacity(0.08) : FambaColors.background,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: isArrived ? FambaColors.success.withOpacity(0.3) : Colors.grey.shade200,
+        ),
+      ),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 52,
+                height: 52,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [FambaColors.primary, FambaColors.primaryDark],
+                  ),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Center(
+                  child: Text(
+                    (driver['name'] as String).substring(0, 1),
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 20,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      driver['name'],
+                      style: const TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w700,
+                        color: FambaColors.textPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                      Row(
+                        children: [
+                        Icon(Icons.star_rounded, size: 16, color: Colors.amber.shade600),
+                        const SizedBox(width: 4),
+                          Text(
+                          "${driver['rating']}",
+                          style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: FambaColors.primary.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            "Helmet ✓",
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              color: FambaColors.primaryDark,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              Row(
+                children: [
+                  _actionButton(Icons.call_rounded, () {}),
+                  const SizedBox(width: 8),
+                  _actionButton(Icons.chat_rounded, () {}),
+                ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.two_wheeler_rounded, size: 20, color: FambaColors.primary),
+                const SizedBox(width: 10),
+                const Expanded(
+                  child: Text(
+                    "Bajaj Boxer • Green",
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: FambaColors.textPrimary,
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: const Text(
+                    "MBK-2489",
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0.5,
+                    ),
+                            ),
+                          ),
+                        ],
+            ),
+          ),
+          if (isArrived) ...[
+            const SizedBox(height: 14),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: FambaColors.success.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.check_circle_rounded, color: FambaColors.success),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      "Your driver has arrived! Look for a green Bajaj.",
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: FambaColors.success,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _actionButton(IconData icon, VoidCallback onTap) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 44,
+        height: 44,
+        decoration: BoxDecoration(
+          color: FambaColors.primary.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Icon(icon, size: 20, color: FambaColors.primary),
+      ),
+    );
+  }
+
+  Widget _buildQuickActions() {
+    final payment = job?.paymentMethod ?? "Famba Card";
+    
     return Row(
       children: [
         Expanded(
-          child: OutlinedButton.icon(
-            onPressed: () {},
-            icon: const Icon(Icons.handshake),
-            label: const Text("I'm here"),
-            style: OutlinedButton.styleFrom(
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
+          child: _infoCard(
+            icon: Icons.access_time_rounded,
+            label: "ETA",
+            value: _getEtaLabel(),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: _infoCard(
+            icon: payment == "Cash" ? Icons.payments_rounded : Icons.credit_card_rounded,
+            label: "Payment",
+            value: payment,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _infoCard({
+    required IconData icon,
+    required String label,
+    required String value,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: FambaColors.background,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, size: 20, color: FambaColors.primary),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: FambaColors.textSecondary,
+                  ),
+                ),
+                Text(
+                  value,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: FambaColors.textPrimary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCompleteSummary() {
+    final fare = job?.fareUsd;
+    final driverName = job?.driver?['name'] ?? 'Your driver';
+    final payment = job?.paymentMethod ?? "Famba Card";
+
+    return Column(
+      children: [
+        // Success badge
+        Container(
+          width: 72,
+          height: 72,
+          decoration: BoxDecoration(
+            color: FambaColors.success.withOpacity(0.1),
+            shape: BoxShape.circle,
+          ),
+          child: Icon(
+            Icons.check_circle_rounded,
+            color: FambaColors.success,
+            size: 40,
+          ),
+        ),
+        const SizedBox(height: 16),
+        const Text(
+          "Ride complete!",
+          style: TextStyle(
+            fontSize: 22,
+            fontWeight: FontWeight.w800,
+            color: FambaColors.textPrimary,
+          ),
+                      ),
+                      const SizedBox(height: 8),
+        Text(
+          "Thanks for riding with Famba",
+          style: TextStyle(
+            fontSize: 14,
+            color: FambaColors.textSecondary,
+          ),
+        ),
+        const SizedBox(height: 24),
+        // Fare card
+        Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: FambaColors.background,
+            borderRadius: BorderRadius.circular(18),
+          ),
+          child: Column(
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    "Total fare",
+                    style: TextStyle(
+                      fontSize: 15,
+                      color: FambaColors.textSecondary,
+                    ),
+                  ),
+                  Text(
+                    fare != null ? "\$${fare.toStringAsFixed(2)}" : "\$--",
+                    style: const TextStyle(
+                      fontSize: 28,
+                      fontWeight: FontWeight.w800,
+                      color: FambaColors.textPrimary,
+                    ),
+                  ),
+                ],
               ),
+              const SizedBox(height: 12),
+              Divider(color: Colors.grey.shade300),
+              const SizedBox(height: 12),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    "Paid with",
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: FambaColors.textSecondary,
+                    ),
+                  ),
+                  Row(
+                    children: [
+                      Icon(
+                        payment == "Cash" ? Icons.payments_rounded : Icons.credit_card_rounded,
+                        size: 18,
+                        color: FambaColors.primary,
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        payment,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 20),
+        // Rate driver
+        SizedBox(
+          width: double.infinity,
+          height: 54,
+          child: ElevatedButton(
+            onPressed: _hasRated ? null : () => _showRatingSheet(driverName),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: _hasRated ? Colors.grey.shade200 : FambaColors.primary,
+              foregroundColor: _hasRated ? FambaColors.textSecondary : Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
+              ),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(_hasRated ? Icons.check_rounded : Icons.star_rounded, size: 20),
+                const SizedBox(width: 8),
+                Text(
+                  _hasRated ? "Thanks for rating!" : "Rate $driverName",
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
             ),
           ),
         ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: OutlinedButton.icon(
-            onPressed: () {},
-            icon: const Icon(Icons.help_outline),
-            label: const Text("Can't find driver"),
+        const SizedBox(height: 12),
+        // Share trip
+        SizedBox(
+          width: double.infinity,
+          height: 54,
+          child: OutlinedButton(
+            onPressed: _shareTrip,
             style: OutlinedButton.styleFrom(
+              side: BorderSide(color: Colors.grey.shade300),
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(14),
+              ),
+            ),
+            child: const Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.share_rounded, size: 20),
+                SizedBox(width: 8),
+                Text(
+                  "Share trip",
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+        // Done button
+        SizedBox(
+          width: double.infinity,
+          height: 54,
+          child: TextButton(
+            onPressed: () =>
+                Navigator.popUntil(context, ModalRoute.withName('/home')),
+            child: const Text(
+              "Done",
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
               ),
             ),
           ),
@@ -464,250 +917,98 @@ class _TrackingScreenState extends State<TrackingScreen> {
     );
   }
 
-  Widget _buildInRideRow(ThemeData theme) {
-    final eta = _estimateEta();
-    final payment = job?.paymentMethod ?? "Famba Card";
-    return Card(
-      elevation: 3,
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Column(
-          children: [
-            Row(
-              children: [
-                CircleAvatar(
-                  backgroundColor: theme.colorScheme.primary,
-                  child: const Icon(Icons.directions_bike, color: Colors.white),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text("Ride in progress",
-                          style: TextStyle(
-                              fontSize: 16, fontWeight: FontWeight.w700)),
-                      const SizedBox(height: 4),
-                      Text("Dropoff: First Street Mall",
-                          style: TextStyle(
-                              fontSize: 13,
-                              color: theme.colorScheme.onSurface
-                                  .withOpacity(0.7))),
-                    ],
-                  ),
-                ),
-                _pillButton(theme, icon: Icons.chat, label: "Message"),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: const [
-                    Text("ETA", style: TextStyle(fontWeight: FontWeight.w600)),
-                    SizedBox(height: 4),
-                    Text("~4 min"),
-                  ],
-                ),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text("Payment",
-                        style: TextStyle(fontWeight: FontWeight.w600)),
-                    const SizedBox(height: 4),
-                    Text(payment),
-                  ],
-                ),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: const [
-                    Text("Status",
-                        style: TextStyle(fontWeight: FontWeight.w600)),
-                    SizedBox(height: 4),
-                    Text("On the way"),
-                  ],
-                ),
-              ],
-            )
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildCompleteSummary(ThemeData theme) {
-    final fare = job?.fareUsd;
-    final eta = _estimateEta();
-    final driverName = job?.driver?['name'] ?? 'Your driver';
-    final payment = job?.paymentMethod ?? "Famba Card";
-    return Card(
-      elevation: 3,
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text("Ride complete",
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                Icon(Icons.flag, size: 18, color: theme.colorScheme.primary),
-                const SizedBox(width: 6),
-                const Text("Dropoff complete"),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text("ETA",
-                        style: TextStyle(fontWeight: FontWeight.w600)),
-                    const SizedBox(height: 4),
-                    Text(eta ?? "~"),
-                  ],
-                ),
-                const Text("Fare", style: TextStyle(fontWeight: FontWeight.w600)),
-                Text(
-                  fare != null ? "\$${fare.toStringAsFixed(2)}" : "\$--",
-                  style: const TextStyle(fontWeight: FontWeight.w700),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text("Payment",
-                    style: TextStyle(fontWeight: FontWeight.w600)),
-                Text(payment),
-              ],
-            ),
-            const SizedBox(height: 12),
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton.icon(
-                onPressed:
-                    _hasRated ? null : () => _showRatingSheet(theme, driverName),
-                icon: const Icon(Icons.star_rate_rounded),
-                label: Text(_hasRated ? "Thanks for rating!" : "Rate your driver"),
-                style: OutlinedButton.styleFrom(
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(height: 8),
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton.icon(
-                onPressed: () => _shareTrip(),
-                icon: const Icon(Icons.share),
-                label: const Text("Share trip"),
-                style: OutlinedButton.styleFrom(
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  String? _estimateEta() {
-    final status = job?.status;
-    if (status == null) return null;
-    switch (status) {
-      case "driver_assigned":
-      case "enroute":
-        return "~4 min";
-      case "arrived":
-        return "~2 min";
-      case "riding":
-        return "~6 min";
-      case "complete":
-        return "0 min";
-      default:
-        return null;
-    }
-  }
-  Future<void> _showRatingSheet(ThemeData theme, String driverName) async {
+  Future<void> _showRatingSheet(String driverName) async {
     double rating = 5;
     final controller = TextEditingController();
     final result = await showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
-      ),
+      backgroundColor: Colors.transparent,
       builder: (ctx) {
-        return Padding(
+        return Container(
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          ),
           padding: EdgeInsets.only(
-            bottom: MediaQuery.of(ctx).viewInsets.bottom + 16,
-            left: 16,
-            right: 16,
+            bottom: MediaQuery.of(ctx).viewInsets.bottom + 24,
+            left: 24,
+            right: 24,
             top: 16,
           ),
           child: StatefulBuilder(
             builder: (ctx, setState) {
               return Column(
                 mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Center(
-                    child: Container(
-                      width: 40,
-                      height: 4,
-                      decoration: BoxDecoration(
-                        color: Colors.grey.shade300,
-                        borderRadius: BorderRadius.circular(10),
-                      ),
+                  Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade300,
+                      borderRadius: BorderRadius.circular(10),
                     ),
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 24),
                   Text(
-                    "Rate $driverName",
+                    "How was your ride with $driverName?",
                     style: const TextStyle(
-                        fontSize: 18, fontWeight: FontWeight.w700),
+                      fontSize: 20,
+                      fontWeight: FontWeight.w700,
+                    ),
+                    textAlign: TextAlign.center,
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 24),
                   Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
                     children: List.generate(5, (i) {
                       final filled = i < rating.round();
-                      return IconButton(
-                        onPressed: () => setState(() => rating = i + 1),
-                        icon: Icon(
-                          filled ? Icons.star_rounded : Icons.star_border_rounded,
-                          size: 32,
-                          color: filled
-                              ? theme.colorScheme.primary
-                              : Colors.grey.shade400,
+                      return GestureDetector(
+                        onTap: () => setState(() => rating = i + 1),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 6),
+                          child: Icon(
+                            filled ? Icons.star_rounded : Icons.star_outline_rounded,
+                            size: 44,
+                            color: filled ? Colors.amber.shade500 : Colors.grey.shade300,
+                          ),
                         ),
                       );
                     }),
                   ),
+                  const SizedBox(height: 24),
                   TextField(
                     controller: controller,
                     maxLines: 3,
-                    decoration: const InputDecoration(
-                      labelText: "Add a comment (optional)",
+                    decoration: InputDecoration(
+                      hintText: "Add a comment (optional)",
+                      filled: true,
+                      fillColor: FambaColors.background,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14),
+                        borderSide: BorderSide.none,
+                      ),
                     ),
                   ),
-                  const SizedBox(height: 12),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
+                  const SizedBox(height: 20),
+                      SizedBox(
+                        width: double.infinity,
+                    height: 54,
+                        child: ElevatedButton(
                       onPressed: () => Navigator.of(ctx).pop(true),
-                      child: const Text("Submit"),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: FambaColors.primary,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                      ),
+                      child: const Text(
+                        "Submit rating",
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
                     ),
                   ),
                 ],
@@ -733,183 +1034,87 @@ class _TrackingScreenState extends State<TrackingScreen> {
         setState(() => _hasRated = true);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(
-                "Thanks! You rated $driverName ${rating.toStringAsFixed(0)}★"),
-            action: SnackBarAction(
-              label: "Share trip",
-              onPressed: _shareTrip,
-            ),
+            content: Text("Thanks! You rated $driverName ${rating.toStringAsFixed(0)}★"),
+            backgroundColor: FambaColors.success,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
           ),
         );
       } catch (e) {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Failed to submit rating: $e")),
+          SnackBar(
+            content: Text("Failed to submit rating: $e"),
+            backgroundColor: FambaColors.error,
+          ),
         );
       }
     }
   }
 
   void _shareTrip() {
-    final id = job?.id ?? "";
-    final url = "https://famba.app/trip/$id";
+    final url = "https://famba.app/trip/$jobId";
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text("Trip link copied: $url")),
+      SnackBar(
+        content: Text("Trip link copied: $url"),
+        backgroundColor: FambaColors.primary,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ),
     );
   }
 
-  Widget _buildDriverRow(ThemeData theme) {
-    return Card(
-      elevation: 3,
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Column(
+  Widget _cancelButton() {
+    return GestureDetector(
+      onTap: () {
+        CancelRideSheet.show(context, jobId, () {
+          Navigator.popUntil(context, ModalRoute.withName('/home'));
+        });
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 18),
+        decoration: BoxDecoration(
+          color: Colors.grey.shade100,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: Colors.grey.shade300),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Row(
-              children: [
-                CircleAvatar(
-                  backgroundColor: theme.colorScheme.primary,
-                  child: Text(
-                    (job!.driver!['name'] as String).substring(0, 1),
-                    style: const TextStyle(color: Colors.white),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        job!.driver!['name'],
-                        style: const TextStyle(
-                            fontSize: 16, fontWeight: FontWeight.w700),
-                      ),
-                      const SizedBox(height: 4),
-                      Row(
-                        children: [
-                          Icon(Icons.star,
-                              size: 16, color: Colors.amber.shade700),
-                          const SizedBox(width: 4),
-                          Text("${job!.driver!['rating']}",
-                              style: const TextStyle(fontSize: 14)),
-                          const SizedBox(width: 8),
-                          Text(
-                            "• Helmet check ✓",
-                            style: TextStyle(
-                                fontSize: 13,
-                                color: theme.colorScheme.onSurface
-                                    .withOpacity(0.7)),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: theme.colorScheme.primary.withOpacity(0.12),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.timer,
-                          size: 16, color: theme.colorScheme.primary),
-                      const SizedBox(width: 4),
-                      Text(
-                        job!.status == "driver_assigned"
-                            ? "~2 min"
-                            : job!.status == "enroute"
-                                ? "En route"
-                                : job!.status == "arrived"
-                                    ? "Arrived"
-                                    : job!.status == "riding"
-                                        ? "Riding"
-                                        : "Done",
-                        style: const TextStyle(fontWeight: FontWeight.w600),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
+            Icon(Icons.close_rounded, color: FambaColors.textSecondary, size: 20),
+            const SizedBox(width: 8),
+            Text(
+              'Cancel ride',
+              style: TextStyle(
+                color: FambaColors.textSecondary,
+                fontWeight: FontWeight.w600,
+                fontSize: 14,
+              ),
             ),
-            const SizedBox(height: 12),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: const [
-                    Text("Bike",
-                        style: TextStyle(
-                            fontSize: 12, fontWeight: FontWeight.w600)),
-                    SizedBox(height: 4),
-                    Text("Bajaj Boxer • Green",
-                        style: TextStyle(fontSize: 13, color: Colors.grey)),
-                  ],
-                ),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: const [
-                    Text("Plate",
-                        style: TextStyle(
-                            fontSize: 12, fontWeight: FontWeight.w600)),
-                    SizedBox(height: 4),
-                    Text("MBK-2489",
-                        style: TextStyle(fontSize: 13, color: Colors.grey)),
-                  ],
-                ),
-                Row(
-                  children: [
-                    _pillButton(theme, icon: Icons.call, label: "Call"),
-                    const SizedBox(width: 8),
-                    _pillButton(theme, icon: Icons.chat, label: "Message"),
-                  ],
-                ),
-              ],
-            )
           ],
         ),
       ),
     );
   }
-
-  Widget _pillButton(ThemeData theme, {required IconData icon, required String label}) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.primary.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 16, color: theme.colorScheme.primary),
-          const SizedBox(width: 4),
-          Text(label,
-              style: TextStyle(
-                  fontSize: 12, color: theme.colorScheme.primary)),
-        ],
-      ),
-    );
-  }
 }
 
-class _PulsingPin extends StatefulWidget {
-  final Color color;
-  const _PulsingPin({required this.color});
+class _PulsingDriverMarker extends StatefulWidget {
+  @override
+  State<_PulsingDriverMarker> createState() => _PulsingDriverMarkerState();
+}
+
+class _PulsingDriverMarkerState extends State<_PulsingDriverMarker>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
 
   @override
-  State<_PulsingPin> createState() => _PulsingPinState();
-}
-
-class _PulsingPinState extends State<_PulsingPin>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _controller =
-      AnimationController(vsync: this, duration: const Duration(seconds: 2))
-        ..repeat();
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1500),
+    )..repeat();
+  }
 
   @override
   void dispose() {
@@ -925,35 +1130,40 @@ class _PulsingPinState extends State<_PulsingPin>
         AnimatedBuilder(
           animation: _controller,
           builder: (context, child) {
-            final scale = 1 + (_controller.value * 0.6);
+            final scale = 1 + (_controller.value * 0.5);
             final opacity = (1 - _controller.value).clamp(0.0, 1.0);
             return Transform.scale(
               scale: scale,
               child: Container(
-                width: 28,
-                height: 28,
+                width: 40,
+                height: 40,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: widget.color.withOpacity(0.25 * opacity),
+                  color: FambaColors.primary.withOpacity(0.2 * opacity),
                 ),
               ),
             );
           },
         ),
         Container(
-          width: 30,
-          height: 30,
+          width: 44,
+          height: 44,
           decoration: BoxDecoration(
             color: Colors.white,
             shape: BoxShape.circle,
             boxShadow: [
               BoxShadow(
-                color: widget.color.withOpacity(0.35),
-                blurRadius: 8,
+                color: FambaColors.primary.withOpacity(0.3),
+                blurRadius: 12,
+                spreadRadius: 2,
               ),
             ],
           ),
-          child: Icon(Icons.navigation, color: widget.color, size: 18),
+          child: const Icon(
+            Icons.navigation_rounded,
+            color: FambaColors.primary,
+            size: 24,
+          ),
         ),
       ],
     );

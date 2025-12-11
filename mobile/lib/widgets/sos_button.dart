@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../core/api.dart';
+import '../main.dart';
 
 class SosButton extends StatelessWidget {
   final String? jobId;
@@ -8,35 +9,30 @@ class SosButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.red.shade50,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.red.shade300, width: 2),
-      ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(12),
-          onTap: () => _handleSOS(context),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Icons.warning_rounded, color: Colors.red.shade700),
-                const SizedBox(width: 8),
-                Text(
-                  'SOS Emergency',
-                  style: TextStyle(
-                    color: Colors.red.shade700,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16,
-                  ),
-                ),
-              ],
+    return GestureDetector(
+      onTap: () => _handleSOS(context),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 18),
+        decoration: BoxDecoration(
+          color: FambaColors.error.withOpacity(0.08),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: FambaColors.error.withOpacity(0.3), width: 1.5),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.shield_rounded, color: FambaColors.error, size: 20),
+            const SizedBox(width: 10),
+            Text(
+              'Safety & Emergency',
+              style: TextStyle(
+                color: FambaColors.error,
+                fontWeight: FontWeight.w700,
+                fontSize: 15,
+              ),
             ),
-          ),
+          ],
         ),
       ),
     );
@@ -47,16 +43,21 @@ class SosButton extends StatelessWidget {
     final confirmed = await showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      backgroundColor: Colors.transparent,
       builder: (ctx) {
-        return StatefulBuilder(builder: (ctx, setState) {
-          return Padding(
-            padding:
-                EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
-            child: Padding(
-              padding: const EdgeInsets.all(16),
+        return Container(
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          child: StatefulBuilder(builder: (ctx, setState) {
+            return Padding(
+              padding: EdgeInsets.only(
+                bottom: MediaQuery.of(ctx).viewInsets.bottom + 24,
+                left: 24,
+                right: 24,
+                top: 16,
+              ),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -67,78 +68,141 @@ class SosButton extends StatelessWidget {
                       height: 4,
                       decoration: BoxDecoration(
                         color: Colors.grey.shade300,
-                        borderRadius: BorderRadius.circular(12),
+                        borderRadius: BorderRadius.circular(10),
                       ),
                     ),
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 20),
                   Row(
                     children: [
-                      Icon(Icons.warning_rounded,
-                          color: Colors.red.shade700, size: 24),
-                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: FambaColors.error.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Icon(Icons.shield_rounded, color: FambaColors.error, size: 24),
+                      ),
+                      const SizedBox(width: 14),
                       const Text(
-                        "Emergency options",
+                        "Safety options",
                         style: TextStyle(
-                            fontSize: 18, fontWeight: FontWeight.w700),
+                          fontSize: 20,
+                          fontWeight: FontWeight.w700,
+                          color: FambaColors.textPrimary,
+                        ),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 20),
                   _sosTile(
-                    icon: Icons.phone_in_talk,
+                    icon: Icons.phone_in_talk_rounded,
                     label: "Call safety hotline",
                     subtitle: "Connect to our 24/7 line",
-                    color: Colors.red.shade700,
+                    color: FambaColors.error,
                     onTap: () => Navigator.of(ctx).pop(true),
-                  ),
-                  _sosTile(
-                    icon: Icons.link,
-                    label: "Share trip link",
-                    subtitle: "Send status to trusted contact",
-                    color: Colors.orange.shade700,
-                    onTap: () => Navigator.of(ctx).pop(true),
-                  ),
-                  _sosTile(
-                    icon: Icons.support_agent,
-                    label: "Message support",
-                    subtitle: "Chat with support about safety",
-                    color: Colors.blue.shade700,
-                    onTap: () => Navigator.of(ctx).pop(true),
-                  ),
-                  const Divider(height: 20),
-                  SwitchListTile.adaptive(
-                    contentPadding: EdgeInsets.zero,
-                    value: notPassenger,
-                    onChanged: (v) => setState(() => notPassenger = v),
-                    activeColor: Colors.red.shade700,
-                    title: const Text(
-                      "I'm not the passenger",
-                      style:
-                          TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
-                    ),
-                    subtitle: const Text(
-                        "Alert driver and support to verify the rider."),
                   ),
                   const SizedBox(height: 12),
+                  _sosTile(
+                    icon: Icons.share_rounded,
+                    label: "Share trip status",
+                    subtitle: "Send your location to contacts",
+                    color: FambaColors.warning,
+                    onTap: () {
+                      Navigator.of(ctx).pop();
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: const Text("Trip link copied!"),
+                          backgroundColor: FambaColors.primary,
+                          behavior: SnackBarBehavior.floating,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        ),
+                      );
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                  _sosTile(
+                    icon: Icons.support_agent_rounded,
+                    label: "Contact support",
+                    subtitle: "Chat with our safety team",
+                    color: Colors.blue,
+                    onTap: () => Navigator.of(ctx).pop(true),
+                  ),
+                  const SizedBox(height: 16),
+                  Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: FambaColors.background,
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: Row(
+                      children: [
+                        Switch.adaptive(
+                          value: notPassenger,
+                          onChanged: (v) => setState(() => notPassenger = v),
+                          activeColor: FambaColors.error,
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                "I'm not the passenger",
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 14,
+                                  color: FambaColors.textPrimary,
+                                ),
+                              ),
+                              Text(
+                                "Alert driver to verify rider",
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: FambaColors.textSecondary,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 20),
                   SizedBox(
                     width: double.infinity,
+                    height: 54,
                     child: ElevatedButton(
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.red.shade700,
+                        backgroundColor: FambaColors.error,
                         foregroundColor: Colors.white,
+                        elevation: 0,
                         shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12)),
+                          borderRadius: BorderRadius.circular(14),
+                        ),
                       ),
                       onPressed: () => Navigator.of(ctx).pop(true),
-                      child: const Text("Send emergency alert"),
+                      child: const Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.warning_rounded, size: 20),
+                          SizedBox(width: 8),
+                          Text(
+                            "Send emergency alert",
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ],
               ),
-            ),
-          );
-        });
+            );
+          }),
+        );
       },
     );
 
@@ -147,10 +211,12 @@ class SosButton extends StatelessWidget {
         await Api.reportIssue(jobId: jobId, issueType: 'emergency');
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Emergency alert sent. Help is on the way.'),
-              backgroundColor: Colors.red,
-              duration: Duration(seconds: 5),
+            SnackBar(
+              content: const Text('Emergency alert sent. Help is on the way.'),
+              backgroundColor: FambaColors.error,
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              duration: const Duration(seconds: 5),
             ),
           );
         }
@@ -159,7 +225,8 @@ class SosButton extends StatelessWidget {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text('Failed to send alert: $e'),
-              backgroundColor: Colors.red,
+              backgroundColor: FambaColors.error,
+              behavior: SnackBarBehavior.floating,
             ),
           );
         }
@@ -174,16 +241,57 @@ class SosButton extends StatelessWidget {
     required Color color,
     required VoidCallback onTap,
   }) {
-    return ListTile(
-      contentPadding: EdgeInsets.zero,
-      leading: CircleAvatar(
-        backgroundColor: color.withOpacity(0.12),
-        child: Icon(icon, color: color),
-      ),
-      title: Text(label, style: const TextStyle(fontWeight: FontWeight.w700)),
-      subtitle: Text(subtitle),
+    return GestureDetector(
       onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: Colors.grey.shade200),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: color.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(icon, color: color, size: 22),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    label,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 15,
+                      color: FambaColors.textPrimary,
+                    ),
+                  ),
+                  Text(
+                    subtitle,
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: FambaColors.textSecondary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Icon(
+              Icons.arrow_forward_ios_rounded,
+              size: 16,
+              color: Colors.grey.shade400,
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
-
