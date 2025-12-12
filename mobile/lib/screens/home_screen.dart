@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
+import 'dart:async';
 import '../main.dart';
+import '../widgets/location_search.dart';
+import '../core/api.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -12,6 +15,11 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
   final _drop = TextEditingController(text: "First Street Mall");
   final _pickupFocus = FocusNode();
   final _dropFocus = FocusNode();
+  
+  // Fare estimator state
+  Map<String, dynamic>? _estimate;
+  bool _loadingEstimate = false;
+  Timer? _estimateDebounce;
   
   late AnimationController _animController;
   late Animation<double> _fadeIn;
@@ -39,16 +47,54 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
       CurvedAnimation(parent: _animController, curve: Curves.easeOut),
     );
     _animController.forward();
+    
+    // Listen for location changes to update estimate
+    _pickup.addListener(_onLocationChanged);
+    _drop.addListener(_onLocationChanged);
   }
 
   @override
   void dispose() {
+    _estimateDebounce?.cancel();
+    _pickup.removeListener(_onLocationChanged);
+    _drop.removeListener(_onLocationChanged);
     _pickup.dispose();
     _drop.dispose();
     _pickupFocus.dispose();
     _dropFocus.dispose();
     _animController.dispose();
     super.dispose();
+  }
+
+  void _onLocationChanged() {
+    _estimateDebounce?.cancel();
+    _estimateDebounce = Timer(const Duration(milliseconds: 500), _fetchEstimate);
+  }
+
+  Future<void> _fetchEstimate() async {
+    if (_pickup.text.trim().isEmpty || _drop.text.trim().isEmpty) {
+      setState(() => _estimate = null);
+      return;
+    }
+    
+    setState(() => _loadingEstimate = true);
+    try {
+      final estimate = await Api.quickEstimate(
+        pickup: _pickup.text,
+        drop: _drop.text,
+        distanceKm: 3.0, // Mock distance
+      );
+      if (mounted) {
+        setState(() {
+          _estimate = estimate;
+          _loadingEstimate = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _loadingEstimate = false);
+      }
+    }
   }
 
   void _swap() {
@@ -61,6 +107,24 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
 
   void _setDestination(String name) {
     setState(() => _drop.text = name);
+  }
+
+  Future<void> _openLocationSearch({required bool isPickup}) async {
+    final result = await LocationSearchSheet.show(
+      context,
+      title: isPickup ? "Set pickup location" : "Where to?",
+      initialValue: isPickup ? _pickup.text : _drop.text,
+    );
+    
+    if (result != null) {
+      setState(() {
+        if (isPickup) {
+          _pickup.text = result.name;
+        } else {
+          _drop.text = result.name;
+        }
+      });
+    }
   }
 
   void _goToQuote() {
@@ -113,8 +177,8 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                             ),
                           ),
                           const SizedBox(height: 2),
-                          const Text(
-                            "Where to?",
+            const Text(
+              "Where to?",
                             style: TextStyle(
                               fontSize: 28,
                               fontWeight: FontWeight.w800,
@@ -226,17 +290,17 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                                       controller: _pickup,
                                       focusNode: _pickupFocus,
                                       hint: "Pickup location",
-                                      onTap: () {},
+                                      onTap: () => _openLocationSearch(isPickup: true),
                                     ),
                                     Divider(
                                       height: 16,
                                       color: Colors.grey.shade100,
                                     ),
                                     _locationInput(
-                                      controller: _drop,
+              controller: _drop,
                                       focusNode: _dropFocus,
                                       hint: "Where to?",
-                                      onTap: () {},
+                                      onTap: () => _openLocationSearch(isPickup: false),
                                     ),
                                   ],
                                 ),
@@ -273,6 +337,15 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                 ),
               ),
 
+              // Fare Estimator Widget
+              if (_estimate != null || _loadingEstimate)
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+                    child: _buildFareEstimator(),
+                  ),
+                ),
+
               // CTA Button
               SliverToBoxAdapter(
                 child: Padding(
@@ -281,22 +354,24 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                     height: 56,
                     child: ElevatedButton(
                       onPressed: _goToQuote,
-                      style: ElevatedButton.styleFrom(
+                style: ElevatedButton.styleFrom(
                         backgroundColor: FambaColors.primary,
-                        foregroundColor: Colors.white,
+                  foregroundColor: Colors.white,
                         elevation: 0,
-                        shape: RoundedRectangleBorder(
+                  shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(16),
                         ),
                       ),
-                      child: const Row(
+                      child: Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Icon(Icons.search_rounded, size: 22),
-                          SizedBox(width: 10),
+                          const Icon(Icons.search_rounded, size: 22),
+                          const SizedBox(width: 10),
                           Text(
-                            "Find a ride",
-                            style: TextStyle(
+                            _estimate != null
+                                ? "Find a ride • ~\$${(_estimate!['estimate_usd'] ?? 0).toStringAsFixed(2)}"
+                                : "Find a ride",
+                            style: const TextStyle(
                               fontSize: 17,
                               fontWeight: FontWeight.w700,
                               letterSpacing: -0.3,
@@ -375,7 +450,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                 ),
               ),
 
-              // Quick Actions Row
+              // Quick Actions Row 1
               SliverToBoxAdapter(
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
@@ -411,6 +486,40 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                   ),
                 ),
               ),
+
+              // Quick Actions Row 2
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+                  child: Row(
+                    children: [
+                      _actionTile(
+                        icon: Icons.card_giftcard_rounded,
+                        label: "Refer",
+                        onTap: () => Navigator.pushNamed(context, '/referrals'),
+                      ),
+                      const SizedBox(width: 12),
+                      _actionTile(
+                        icon: Icons.analytics_rounded,
+                        label: "Earnings",
+                        onTap: () => Navigator.pushNamed(context, '/driver-earnings'),
+                      ),
+                      const SizedBox(width: 12),
+                      _actionTile(
+                        icon: Icons.bookmark_rounded,
+                        label: "Saved",
+                        onTap: () => Navigator.pushNamed(context, '/saved-places'),
+                      ),
+                      const SizedBox(width: 12),
+                      _actionTile(
+                        icon: Icons.help_outline_rounded,
+                        label: "Help",
+                        onTap: () {},
+                      ),
+                    ],
+                ),
+              ),
+            ),
 
               // Recent Places Header
               SliverToBoxAdapter(
@@ -511,26 +620,31 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
     required String hint,
     required VoidCallback onTap,
   }) {
-    return TextField(
-      controller: controller,
-      focusNode: focusNode,
+    return GestureDetector(
       onTap: onTap,
-      style: const TextStyle(
-        fontSize: 15,
-        fontWeight: FontWeight.w500,
-        color: FambaColors.textPrimary,
-      ),
-      decoration: InputDecoration(
-        hintText: hint,
-        hintStyle: TextStyle(
-          color: Colors.grey.shade400,
-          fontWeight: FontWeight.w400,
+      child: AbsorbPointer(
+        child: TextField(
+          controller: controller,
+          focusNode: focusNode,
+          readOnly: true,
+          style: const TextStyle(
+            fontSize: 15,
+            fontWeight: FontWeight.w500,
+            color: FambaColors.textPrimary,
+          ),
+          decoration: InputDecoration(
+            hintText: hint,
+            hintStyle: TextStyle(
+              color: Colors.grey.shade400,
+              fontWeight: FontWeight.w400,
+            ),
+            border: InputBorder.none,
+            enabledBorder: InputBorder.none,
+            focusedBorder: InputBorder.none,
+            contentPadding: EdgeInsets.zero,
+            isDense: true,
+          ),
         ),
-        border: InputBorder.none,
-        enabledBorder: InputBorder.none,
-        focusedBorder: InputBorder.none,
-        contentPadding: EdgeInsets.zero,
-        isDense: true,
       ),
     );
   }
@@ -659,6 +773,131 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildFareEstimator() {
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 300),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: FambaColors.primary.withOpacity(0.2)),
+        boxShadow: [
+          BoxShadow(
+            color: FambaColors.primary.withOpacity(0.08),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: _loadingEstimate
+          ? Row(
+              children: [
+                SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: FambaColors.primary,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Text(
+                  "Estimating fare...",
+                  style: TextStyle(
+                    color: Colors.grey.shade600,
+                    fontSize: 14,
+                  ),
+                ),
+              ],
+            )
+          : Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: FambaColors.primary.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(
+                    Icons.monetization_on_rounded,
+                    color: FambaColors.primary,
+                    size: 24,
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        "Quick Estimate",
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                          color: FambaColors.textSecondary,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Row(
+                        children: [
+                          Text(
+                            "\$${(_estimate?['estimate_usd'] ?? 0).toStringAsFixed(2)}",
+                            style: const TextStyle(
+                              fontSize: 22,
+                              fontWeight: FontWeight.w800,
+                              color: FambaColors.textPrimary,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 3,
+                            ),
+                            decoration: BoxDecoration(
+                              color: FambaColors.primary.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              "${_estimate?['eta_min'] ?? 0} min",
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: FambaColors.primaryDark,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(
+                      "${(_estimate?['distance_km'] ?? 0).toStringAsFixed(1)} km",
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: FambaColors.textSecondary,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      _estimate?['corridor'] ?? 'CBD',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: Colors.grey.shade500,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
       ),
     );
   }

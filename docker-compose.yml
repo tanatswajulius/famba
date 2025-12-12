@@ -1,0 +1,88 @@
+# Famba Full Stack Docker Compose
+# Usage: docker-compose up -d
+
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: famba-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-famba}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-famba_secret}
+      POSTGRES_DB: ${POSTGRES_DB:-famba}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U famba"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: famba-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Backend API
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: famba-backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      - ENVIRONMENT=production
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-famba}:${POSTGRES_PASSWORD:-famba_secret}@postgres:5432/${POSTGRES_DB:-famba}
+      - REDIS_URL=redis://redis:6379
+      - SECRET_KEY=${SECRET_KEY:-change-this-in-production}
+      - BASIC_USER=${BASIC_USER:-demo}
+      - BASIC_PASS=${BASIC_PASS:-demo123}
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Admin Dashboard (nginx serving static files)
+  admin:
+    image: nginx:alpine
+    container_name: famba-admin
+    restart: unless-stopped
+    depends_on:
+      - backend
+    volumes:
+      - ./admin/dist:/usr/share/nginx/html:ro
+      - ./admin/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    ports:
+      - "3000:80"
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  default:
+    name: famba-network
+

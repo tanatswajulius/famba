@@ -175,4 +175,138 @@ class Api {
     );
     return jsonDecode(res.body);
   }
+
+  static Future<List<Map<String, dynamic>>> searchLocations({
+    required String query,
+    int limit = 10,
+  }) async {
+    final res = await http.get(
+      Uri.parse('$base/locations/search?q=${Uri.encodeComponent(query)}&limit=$limit'),
+      headers: _headers(),
+    );
+    final data = jsonDecode(res.body);
+    return List<Map<String, dynamic>>.from(data['locations'] ?? []);
+  }
+
+  static Future<List<Map<String, dynamic>>> getPopularLocations({
+    int limit = 10,
+  }) async {
+    final res = await http.get(
+      Uri.parse('$base/locations/popular?limit=$limit'),
+      headers: _headers(),
+    );
+    final data = jsonDecode(res.body);
+    return List<Map<String, dynamic>>.from(data['locations'] ?? []);
+  }
+
+  // Quick fare estimate
+  static Future<Map<String, dynamic>> quickEstimate({
+    required String pickup,
+    required String drop,
+    required double distanceKm,
+  }) async {
+    final res = await http.post(
+      Uri.parse('$base/estimate'),
+      headers: _headers(),
+      body: jsonEncode({
+        'pickup_text': pickup,
+        'drop_text': drop,
+        'distance_km': distanceKm,
+      }),
+    );
+    return jsonDecode(res.body);
+  }
+
+  // Referral endpoints
+  static Future<Map<String, dynamic>> createReferralCode({
+    required String name,
+    String? phone,
+  }) async {
+    final res = await http.post(
+      Uri.parse('$base/referrals/create'),
+      headers: _headers(),
+      body: jsonEncode({'name': name, 'phone': phone}),
+    );
+    return jsonDecode(res.body);
+  }
+
+  static Future<Map<String, dynamic>> getReferralInfo(String code) async {
+    final res = await http.get(
+      Uri.parse('$base/referrals/$code'),
+      headers: _headers(),
+    );
+    return jsonDecode(res.body);
+  }
+
+  static Future<Map<String, dynamic>> applyReferralCode({
+    required String code,
+    required String name,
+    String? phone,
+  }) async {
+    final res = await http.post(
+      Uri.parse('$base/referrals/apply'),
+      headers: _headers(),
+      body: jsonEncode({'code': code, 'name': name, 'phone': phone}),
+    );
+    return jsonDecode(res.body);
+  }
+
+  static Future<Map<String, dynamic>> getReferralStats(String code) async {
+    final res = await http.get(
+      Uri.parse('$base/referrals/$code/stats'),
+      headers: _headers(),
+    );
+    return jsonDecode(res.body);
+  }
+
+  // Driver earnings endpoints
+  static Future<Map<String, dynamic>> getDriverEarnings(String driverId) async {
+    final res = await http.get(
+      Uri.parse('$base/drivers/$driverId/earnings'),
+      headers: _headers(),
+    );
+    return jsonDecode(res.body);
+  }
+
+  static Future<Map<String, dynamic>> getEarningsLeaderboard() async {
+    final res = await http.get(
+      Uri.parse('$base/drivers/earnings/leaderboard'),
+      headers: _headers(),
+    );
+    return jsonDecode(res.body);
+  }
+
+  // Multi-stop rides
+  static Future<Map<String, dynamic>> createMultiStopJob({
+    required String pickup,
+    required String drop,
+    required List<Map<String, dynamic>> waypoints,
+    required double totalDistanceKm,
+    required String riderName,
+    String? driverId,
+    String? paymentMethod,
+    double? pickupLat,
+    double? pickupLng,
+    double? dropLat,
+    double? dropLng,
+  }) async {
+    final res = await http.post(
+      Uri.parse('$base/jobs/multi-stop'),
+      headers: _headers(),
+      body: jsonEncode({
+        'pickup_text': pickup,
+        'drop_text': drop,
+        'waypoints': waypoints,
+        'total_distance_km': totalDistanceKm,
+        'rider_name': riderName,
+        if (driverId != null) 'driver_id': driverId,
+        if (paymentMethod != null) 'payment_method': paymentMethod,
+        if (pickupLat != null) 'pickup_lat': pickupLat,
+        if (pickupLng != null) 'pickup_lng': pickupLng,
+        if (dropLat != null) 'drop_lat': dropLat,
+        if (dropLng != null) 'drop_lng': dropLng,
+      }),
+    );
+    return jsonDecode(res.body);
+  }
 }

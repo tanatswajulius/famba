@@ -14,6 +14,9 @@ import 'screens/receipt_screen.dart';
 import 'screens/saved_places_screen.dart';
 import 'screens/promo_screen.dart';
 import 'screens/schedule_ride_screen.dart';
+import 'screens/referrals_screen.dart';
+import 'screens/driver_earnings_screen.dart';
+import 'screens/chat_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -226,6 +229,9 @@ class FambaApp extends StatelessWidget {
         '/saved-places': (_) => const SavedPlacesScreen(),
         '/promo': (_) => const PromoScreen(),
         '/schedule': (_) => const ScheduleRideScreen(),
+        '/referrals': (_) => const ReferralsScreen(),
+        '/driver-earnings': (_) => const DriverEarningsScreen(),
+        '/chat': (_) => const ChatScreen(),
       },
     );
   }

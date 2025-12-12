@@ -1,6 +1,10 @@
-name: famba_rider
+name: famba_driver
+description: Famba Driver App - Motorcycle ride-hailing for drivers
+version: 1.0.0+1
+
 environment:
   sdk: ">=3.5.0 <4.0.0"
+
 dependencies:
   flutter:
     sdk: flutter
@@ -8,9 +12,10 @@ dependencies:
   provider: ^6.1.2
   shared_preferences: ^2.2.3
   connectivity_plus: ^6.0.3
-  flutter_native_splash: ^2.4.0
   flutter_map: ^6.1.0
   latlong2: ^0.9.1
+  geolocator: ^12.0.0
+  permission_handler: ^11.3.0
   web_socket_channel: ^2.4.0
 
 dev_dependencies:
@@ -19,14 +24,4 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
-  assets:
-    - assets/images/famba.png
 
-flutter_native_splash:
-  color: "#4CAF50"
-  image: assets/images/famba.png
-  android: true
-  ios: true
-  web: true
-  android_gravity: center
-  ios_content_mode: center

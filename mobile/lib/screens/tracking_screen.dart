@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import '../core/api.dart';
+import '../core/websocket_service.dart';
+import '../core/route_service.dart';
 import '../models/job.dart';
 import '../widgets/sos_button.dart';
 import '../widgets/cancel_ride_sheet.dart';
@@ -33,6 +35,12 @@ class _TrackingScreenState extends State<TrackingScreen>
   Timer? timer;
   bool _hasRated = false;
   double _sheetSize = 0.4;
+  
+  // WebSocket and Route
+  StreamSubscription? _wsSubscription;
+  List<LatLng> _routePoints = [];
+  bool _useWebSocket = true;
+  bool _routeLoaded = false;
 
   @override
   void didChangeDependencies() {
@@ -44,11 +52,76 @@ class _TrackingScreenState extends State<TrackingScreen>
     }
 
     if (jobId.isNotEmpty) {
-      _poll();
-      timer = Timer.periodic(const Duration(seconds: 2), (_) => _poll());
+      _initTracking();
     }
 
     super.didChangeDependencies();
+  }
+
+  Future<void> _initTracking() async {
+    // Initial poll to get job data
+    await _poll();
+    
+    // Try WebSocket first, fall back to polling
+    if (_useWebSocket) {
+      _connectWebSocket();
+    } else {
+      timer = Timer.periodic(const Duration(seconds: 2), (_) => _poll());
+    }
+    
+    // Fetch OSRM route
+    _fetchRoute();
+  }
+
+  void _connectWebSocket() {
+    wsService.connect(jobId);
+    _wsSubscription = wsService.jobUpdates.listen((data) {
+      if (data['type'] == 'job_update' && data['job'] != null) {
+        final j = Job.fromJson(data['job']);
+        if (!mounted) return;
+        setState(() => job = j);
+        
+        if (j.status == "complete") {
+          wsService.disconnect();
+        }
+      }
+    }, onError: (e) {
+      // Fall back to polling on WebSocket error
+      _useWebSocket = false;
+      timer = Timer.periodic(const Duration(seconds: 2), (_) => _poll());
+    });
+  }
+
+  Future<void> _fetchRoute() async {
+    if (_routeLoaded) return;
+    
+    final pickupLat = job?.pickupLat ?? _pickupPoint.latitude;
+    final pickupLng = job?.pickupLng ?? _pickupPoint.longitude;
+    final dropLat = job?.dropLat ?? _dropoffPoint.latitude;
+    final dropLng = job?.dropLng ?? _dropoffPoint.longitude;
+    
+    try {
+      final points = await RouteService.getRoute(
+        start: LatLng(pickupLat, pickupLng),
+        end: LatLng(dropLat, dropLng),
+      );
+      
+      if (mounted && points.isNotEmpty) {
+        setState(() {
+          _routePoints = points;
+          _routeLoaded = true;
+        });
+      }
+    } catch (e) {
+      // Use straight line on error
+      setState(() {
+        _routePoints = [
+          LatLng(pickupLat, pickupLng),
+          LatLng(dropLat, dropLng),
+        ];
+        _routeLoaded = true;
+      });
+    }
   }
 
   Future<void> _poll() async {
@@ -68,9 +141,18 @@ class _TrackingScreenState extends State<TrackingScreen>
     }
   }
 
+  void _openChat() {
+    Navigator.pushNamed(context, '/chat', arguments: {
+      'driverName': job?.driver?['name'] ?? 'Driver',
+      'jobId': jobId,
+    });
+  }
+
   @override
   void dispose() {
     timer?.cancel();
+    _wsSubscription?.cancel();
+    wsService.disconnect();
     super.dispose();
   }
 
@@ -267,6 +349,11 @@ class _TrackingScreenState extends State<TrackingScreen>
     final centerLng = (driverLng + dropLng) / 2;
 
     final hasTileKey = _mapTileKey.isNotEmpty && _mapTileKey != 'get-your-key';
+    
+    // Use OSRM route if available, otherwise straight line
+    final routePolyline = _routePoints.isNotEmpty
+        ? _routePoints
+        : [LatLng(pickupLat, pickupLng), LatLng(dropLat, dropLng)];
 
     return FlutterMap(
       options: MapOptions(
@@ -281,15 +368,15 @@ class _TrackingScreenState extends State<TrackingScreen>
           subdomains: hasTileKey ? const [] : const ['a', 'b', 'c'],
           userAgentPackageName: 'com.famba.rider',
         ),
+        // Route polyline (from OSRM)
         PolylineLayer(
           polylines: [
             Polyline(
-              points: [
-                LatLng(pickupLat, pickupLng),
-                LatLng(dropLat, dropLng),
-              ],
-              strokeWidth: 4,
-              color: FambaColors.primary.withOpacity(0.6),
+              points: routePolyline,
+              strokeWidth: 5,
+              color: FambaColors.primary,
+              borderStrokeWidth: 2,
+              borderColor: FambaColors.primaryDark.withOpacity(0.3),
             ),
           ],
         ),
@@ -670,24 +757,96 @@ class _TrackingScreenState extends State<TrackingScreen>
   Widget _buildQuickActions() {
     final payment = job?.paymentMethod ?? "Famba Card";
     
-    return Row(
+    return Column(
       children: [
-        Expanded(
-          child: _infoCard(
-            icon: Icons.access_time_rounded,
-            label: "ETA",
-            value: _getEtaLabel(),
-          ),
+        Row(
+          children: [
+            Expanded(
+              child: _infoCard(
+                icon: Icons.access_time_rounded,
+                label: "ETA",
+                value: _getEtaLabel(),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _infoCard(
+                icon: payment == "Cash" ? Icons.payments_rounded : Icons.credit_card_rounded,
+                label: "Payment",
+                value: payment,
+              ),
+            ),
+          ],
         ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: _infoCard(
-            icon: payment == "Cash" ? Icons.payments_rounded : Icons.credit_card_rounded,
-            label: "Payment",
-            value: payment,
-          ),
+        const SizedBox(height: 12),
+        // Quick action buttons (Call, Chat, Share)
+        Row(
+          children: [
+            _quickActionBtn(
+              icon: Icons.call_rounded,
+              label: "Call",
+              color: FambaColors.primary,
+              onTap: () {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Calling driver (simulated)')),
+                );
+              },
+            ),
+            const SizedBox(width: 10),
+            _quickActionBtn(
+              icon: Icons.chat_bubble_rounded,
+              label: "Chat",
+              color: Colors.blue,
+              onTap: _openChat,
+            ),
+            const SizedBox(width: 10),
+            _quickActionBtn(
+              icon: Icons.share_rounded,
+              label: "Share",
+              color: Colors.orange,
+              onTap: () {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Share link: famba.app/track/$jobId')),
+                );
+              },
+            ),
+          ],
         ),
       ],
+    );
+  }
+
+  Widget _quickActionBtn({
+    required IconData icon,
+    required String label,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return Expanded(
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          decoration: BoxDecoration(
+            color: color.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Column(
+            children: [
+              Icon(icon, color: color, size: 22),
+              const SizedBox(height: 4),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: color,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 

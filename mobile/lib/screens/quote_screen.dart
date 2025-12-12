@@ -3,6 +3,8 @@ import '../core/api.dart';
 import 'package:provider/provider.dart';
 import '../core/app_state.dart';
 import '../main.dart';
+import '../widgets/ride_preferences.dart';
+import '../widgets/multi_stop_editor.dart';
 
 class QuoteScreen extends StatefulWidget {
   const QuoteScreen({super.key});
@@ -20,6 +22,10 @@ class _QuoteScreenState extends State<QuoteScreen>
   String pickup = "UZ Campus Gate";
   String drop = "First Street Mall";
   double distanceKm = 3.0;
+  
+  // New: Ride preferences and multi-stop
+  RidePreferences ridePrefs = RidePreferences();
+  List<Waypoint> waypoints = [];
 
   late AnimationController _animController;
   late Animation<double> _fadeIn;
@@ -135,6 +141,9 @@ class _QuoteScreenState extends State<QuoteScreen>
                         children: [
                           // Route Summary
                           _buildRouteCard(),
+                          const SizedBox(height: 12),
+                          // Ride Options Row (Preferences + Multi-stop)
+                          _buildRideOptionsRow(),
                           const SizedBox(height: 16),
                           // Price Card
                           _buildPriceCard(),
@@ -714,6 +723,144 @@ class _QuoteScreenState extends State<QuoteScreen>
                   ),
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildRideOptionsRow() {
+    return Row(
+      children: [
+        Expanded(
+          child: GestureDetector(
+            onTap: _showPreferencesSheet,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.grey.shade200),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.tune_rounded,
+                    size: 18,
+                    color: FambaColors.primary,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      _getPreferencesLabel(),
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: FambaColors.textPrimary,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  Icon(
+                    Icons.chevron_right_rounded,
+                    size: 18,
+                    color: Colors.grey.shade400,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: GestureDetector(
+            onTap: _showMultiStopSheet,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              decoration: BoxDecoration(
+                color: waypoints.isNotEmpty
+                    ? Colors.orange.withOpacity(0.1)
+                    : Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: waypoints.isNotEmpty
+                      ? Colors.orange.withOpacity(0.3)
+                      : Colors.grey.shade200,
+                ),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.add_location_alt_rounded,
+                    size: 18,
+                    color: waypoints.isNotEmpty ? Colors.orange : FambaColors.primary,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      waypoints.isEmpty
+                          ? "Add stops"
+                          : "${waypoints.length} stop${waypoints.length > 1 ? 's' : ''}",
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: waypoints.isNotEmpty
+                            ? Colors.orange
+                            : FambaColors.textPrimary,
+                      ),
+                    ),
+                  ),
+                  if (waypoints.isNotEmpty)
+                    Text(
+                      "+\$${(waypoints.length * 0.5).toStringAsFixed(2)}",
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.orange,
+                      ),
+                    )
+                  else
+                    Icon(
+                      Icons.chevron_right_rounded,
+                      size: 18,
+                      color: Colors.grey.shade400,
+                    ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  String _getPreferencesLabel() {
+    final active = <String>[];
+    if (ridePrefs.ac) active.add('AC');
+    if (ridePrefs.quietRide) active.add('Quiet');
+    if (ridePrefs.petFriendly) active.add('Pet');
+    if (ridePrefs.helmetProvided) active.add('Helmet');
+    return active.isEmpty ? 'Preferences' : active.join(', ');
+  }
+
+  void _showPreferencesSheet() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => RidePreferencesSheet(
+        preferences: ridePrefs,
+        onChanged: (prefs) => setState(() => ridePrefs = prefs),
+      ),
+    );
+  }
+
+  void _showMultiStopSheet() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => MultiStopEditor(
+        waypoints: waypoints,
+        onChanged: (stops) => setState(() => waypoints = stops),
       ),
     );
   }

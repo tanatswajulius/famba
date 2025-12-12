@@ -93,51 +93,29 @@ class _LoginScreenState extends State<LoginScreen>
                       ),
                     );
                   },
-                  child: Column(
-                    children: [
-                      // Logo container with glow effect
-                      Container(
-                        width: 120,
-                        height: 120,
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(32),
-                          boxShadow: [
-                            BoxShadow(
-                              color: FambaColors.primary.withOpacity(0.3),
-                              blurRadius: 40,
-                              spreadRadius: 0,
-                              offset: const Offset(0, 16),
-                            ),
-                            BoxShadow(
-                              color: Colors.black.withOpacity(0.04),
-                              blurRadius: 20,
-                              offset: const Offset(0, 8),
-                            ),
-                          ],
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 20),
+                    decoration: BoxDecoration(
+                      color: FambaColors.primary,
+                      borderRadius: BorderRadius.circular(20),
+                      boxShadow: [
+                        BoxShadow(
+                          color: FambaColors.primary.withOpacity(0.4),
+                          blurRadius: 30,
+                          spreadRadius: 0,
+                          offset: const Offset(0, 12),
                         ),
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(32),
-                          child: Padding(
-                            padding: const EdgeInsets.all(20),
-                            child: Image.asset(
-                              'assets/images/famba.png',
-                              fit: BoxFit.contain,
-                            ),
-                          ),
-                        ),
+                      ],
+                    ),
+                    child: const Text(
+                      "famba",
+                      style: TextStyle(
+                        fontSize: 52,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: -2,
+                        color: Colors.white,
                       ),
-                      const SizedBox(height: 32),
-                      const Text(
-                        "Famba",
-                        style: TextStyle(
-                          fontSize: 44,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: -2,
-                          color: FambaColors.textPrimary,
-                        ),
-                      ),
-                    ],
+                    ),
                   ),
                 ),
                 const SizedBox(height: 16),
