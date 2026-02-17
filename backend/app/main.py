@@ -1,18 +1,19 @@
-import os
-import secrets
 import asyncio
-import json
 from typing import Dict, Set
 
 from dotenv import load_dotenv
-from fastapi import Depends, FastAPI, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi import (
+    Depends, FastAPI, HTTPException,
+    WebSocket, WebSocketDisconnect,
+)
 from fastapi.middleware.cors import CORSMiddleware
 
 from .config import settings
 from .auth import (
     Token, UserCreate, UserLogin, UserResponse,
-    get_current_user, get_current_active_user, require_admin, require_driver,
-    create_user, authenticate_user, create_tokens, refresh_access_token, revoke_refresh_token,
+    get_current_user, get_current_active_user,
+    create_user, authenticate_user, create_tokens,
+    refresh_access_token, revoke_refresh_token,
     get_user_by_phone,
 )
 from .recommend import (
@@ -20,30 +21,37 @@ from .recommend import (
     estimate_eta_minutes,
     estimate_price_usd,
 )
-from .schemas import CreateJob, Quote, QuoteRequest
+from .schemas import (
+    CreateJob, Quote, QuoteRequest,
+    CreateFoodOrder, WalletTopUp, WalletPayment,
+)
 from .simulator import simulate
 from .database import (
-    create_job,
-    get_job,
-    get_next_driver,
-    get_driver_by_id,
-    list_jobs,
-    pick_driver,
-    update_job,
-    add_rating,
-    list_ratings,
+    # Users
+    db_list_users, db_get_user_count,
+    # Jobs
+    create_job, get_job, get_next_driver, get_driver_by_id, list_jobs,
+    pick_driver, update_job,
+    # Ratings
+    add_rating, list_ratings,
+    # Promos
     validate_promo as db_validate_promo,
-    search_locations,
-    get_popular_locations,
+    # Locations
+    search_locations, get_popular_locations,
     # Referrals
-    create_referral,
-    get_referral,
-    apply_referral,
-    get_referral_stats,
+    create_referral, get_referral, apply_referral, get_referral_stats,
     # Driver earnings
-    record_driver_earning,
-    get_driver_earnings,
-    get_all_drivers_earnings,
+    record_driver_earning, get_driver_earnings, get_all_drivers_earnings,
+    # Restaurants & food orders
+    list_restaurants, get_restaurant, search_restaurants,
+    get_menu,
+    create_food_order, get_food_order,
+    update_food_order, list_food_orders,
+    # Wallet
+    get_wallet_balance, wallet_top_up, wallet_deduct,
+    get_wallet_transactions,
+    # Drivers list
+    get_all_drivers,
 )
 
 load_dotenv()
@@ -64,7 +72,6 @@ app.add_middleware(
 EXPECTED_USER = settings.basic_user
 EXPECTED_PASS = settings.basic_pass
 
-
 # Use the new auth system
 require_auth = get_current_active_user
 
@@ -79,10 +86,8 @@ def health():
 @app.post("/auth/register", response_model=Token)
 def register(user_data: UserCreate):
     """Register a new user."""
-    # Check if phone already exists
     if get_user_by_phone(user_data.phone):
         raise HTTPException(400, "Phone number already registered")
-    
     try:
         user = create_user(user_data)
         return create_tokens(user["id"], user["user_type"])
@@ -105,7 +110,6 @@ def refresh_token(payload: dict):
     refresh = payload.get("refresh_token")
     if not refresh:
         raise HTTPException(400, "Refresh token required")
-    
     tokens = refresh_access_token(refresh)
     if not tokens:
         raise HTTPException(401, "Invalid or expired refresh token")
@@ -130,6 +134,7 @@ def get_me(current_user: dict = Depends(get_current_user)):
         name=current_user["name"],
         user_type=current_user.get("user_type", "rider"),
         is_verified=current_user.get("is_verified", False),
+        wallet_balance=current_user.get("wallet_balance", 0.0),
         created_at=current_user.get("created_at", ""),
     )
 
@@ -140,18 +145,10 @@ def get_me(current_user: dict = Depends(get_current_user)):
 def quote(q: QuoteRequest, _auth=Depends(require_auth)):
     corridor = classify_corridor(q.pickup_text, q.drop_text)
     eta = estimate_eta_minutes(q.distance_km, corridor)
-    price, base, dist = estimate_price_usd(
-        q.distance_km,
-        corridor,
-        peak=q.peak,
-    )
+    price, base, dist = estimate_price_usd(q.distance_km, corridor, peak=q.peak)
     return Quote(
-        corridor=corridor,
-        eta_min=eta,
-        price_usd=price,
-        base_fare=base,
-        distance_fare=dist,
-        total_usd=price,
+        corridor=corridor, eta_min=eta, price_usd=price,
+        base_fare=base, distance_fare=dist, total_usd=price,
     )
 
 
@@ -160,10 +157,8 @@ def create(j: CreateJob, _auth=Depends(require_auth)):
     job = create_job(j.model_dump())
     drv = get_driver_by_id(j.driver_id) or pick_driver()
     update_job(
-        job["id"],
-        status="driver_assigned",
-        driver_id=drv["id"],
-        driver=drv,
+        job["id"], status="driver_assigned",
+        driver_id=drv["id"], driver=drv,
         fare_usd=j.fare_usd if hasattr(j, "fare_usd") else None,
     )
     simulate(job["id"])
@@ -185,23 +180,15 @@ def all_jobs(_auth=Depends(require_auth)):
 
 @app.post("/issues")
 def report_issue(payload: dict, _auth=Depends(require_auth)):
-    # Demo echo endpoint for Trust & Safety reporting
     return {"ok": True}
 
 
 @app.post("/recommend")
 def recommend_drivers(payload: dict, _auth=Depends(require_auth)):
-    # Returns ranked list of candidate drivers based on corridor
     corridor = payload.get("corridor", "CBD")
     primary = get_next_driver()
-    # Keep list stable while using the same primary driver the job will use
     drivers = [
-        {
-            "id": primary["id"],
-            "name": primary["name"],
-            "rating": primary["rating"],
-            "eta_min": 2,
-        },
+        {"id": primary["id"], "name": primary["name"], "rating": primary["rating"], "eta_min": 2},
         {"id": "alt1", "name": "Kuda M.", "rating": 4.7, "eta_min": 4},
         {"id": "alt2", "name": "Nyasha P.", "rating": 4.6, "eta_min": 6},
     ]
@@ -229,7 +216,6 @@ def cancel_job(job_id: str, payload: dict, _auth=Depends(require_auth)):
     job = get_job(job_id)
     if not job:
         raise HTTPException(404, "Job not found")
-    
     reason = payload.get("reason", "unknown")
     update_job(job_id, status="cancelled", cancel_reason=reason)
     return {"ok": True, "job_id": job_id, "reason": reason}
@@ -237,25 +223,17 @@ def cancel_job(job_id: str, payload: dict, _auth=Depends(require_auth)):
 
 @app.post("/jobs/schedule")
 def schedule_job(payload: dict, _auth=Depends(require_auth)):
-    # Create a scheduled job
     job = create_job(payload)
-    update_job(
-        job["id"],
-        status="scheduled",
-        scheduled_time=payload.get("scheduled_time"),
-    )
+    update_job(job["id"], status="scheduled", scheduled_time=payload.get("scheduled_time"))
     return {
-        "ok": True,
-        "job_id": job["id"],
+        "ok": True, "job_id": job["id"],
         "scheduled_time": payload.get("scheduled_time"),
         "message": "Ride scheduled successfully",
     }
 
 
-# Location search endpoints
 @app.get("/locations/search")
 def locations_search(q: str = "", limit: int = 10, _auth=Depends(require_auth)):
-    """Search locations by name, address, or area."""
     if not q or len(q) < 2:
         return {"locations": get_popular_locations(limit)}
     return {"locations": search_locations(q, limit)}
@@ -263,34 +241,22 @@ def locations_search(q: str = "", limit: int = 10, _auth=Depends(require_auth)):
 
 @app.get("/locations/popular")
 def locations_popular(limit: int = 10, _auth=Depends(require_auth)):
-    """Get popular locations."""
     return {"locations": get_popular_locations(limit)}
 
 
-# Quick fare estimate endpoint
 @app.post("/estimate")
 def quick_estimate(payload: dict, _auth=Depends(require_auth)):
-    """Quick fare estimate without full quote details."""
     distance_km = payload.get("distance_km", 5.0)
-    corridor = classify_corridor(
-        payload.get("pickup_text", ""),
-        payload.get("drop_text", ""),
-    )
+    corridor = classify_corridor(payload.get("pickup_text", ""), payload.get("drop_text", ""))
     price, base, dist = estimate_price_usd(distance_km, corridor, peak=False)
     eta = estimate_eta_minutes(distance_km, corridor)
-    
-    return {
-        "estimate_usd": round(price, 2),
-        "eta_min": eta,
-        "distance_km": distance_km,
-        "corridor": corridor,
-    }
+    return {"estimate_usd": round(price, 2), "eta_min": eta, "distance_km": distance_km, "corridor": corridor}
 
 
-# Referral endpoints
+# ==================== REFERRAL ROUTES ====================
+
 @app.post("/referrals/create")
 def create_referral_code(payload: dict, _auth=Depends(require_auth)):
-    """Create a referral code for a user."""
     name = payload.get("name", "User")
     phone = payload.get("phone")
     return create_referral(name, phone)
@@ -298,7 +264,6 @@ def create_referral_code(payload: dict, _auth=Depends(require_auth)):
 
 @app.get("/referrals/{code}")
 def get_referral_info(code: str, _auth=Depends(require_auth)):
-    """Get referral info by code."""
     referral = get_referral(code)
     if not referral:
         raise HTTPException(404, "Referral code not found")
@@ -307,7 +272,6 @@ def get_referral_info(code: str, _auth=Depends(require_auth)):
 
 @app.post("/referrals/apply")
 def apply_referral_code(payload: dict, _auth=Depends(require_auth)):
-    """Apply a referral code for a new signup."""
     code = payload.get("code", "")
     referee_name = payload.get("name", "New User")
     referee_phone = payload.get("phone")
@@ -316,54 +280,49 @@ def apply_referral_code(payload: dict, _auth=Depends(require_auth)):
 
 @app.get("/referrals/{code}/stats")
 def referral_stats(code: str, _auth=Depends(require_auth)):
-    """Get referral statistics."""
     stats = get_referral_stats(code)
     if not stats.get("ok"):
         raise HTTPException(404, stats.get("message", "Not found"))
     return stats
 
 
-# Driver earnings endpoints
+# ==================== DRIVER ROUTES ====================
+
+@app.get("/drivers")
+def drivers_list(_auth=Depends(require_auth)):
+    """List all active drivers."""
+    return {"drivers": get_all_drivers()}
+
+
 @app.get("/drivers/{driver_id}/earnings")
 def driver_earnings(driver_id: str, _auth=Depends(require_auth)):
-    """Get driver earnings summary and history."""
     return get_driver_earnings(driver_id)
 
 
 @app.get("/drivers/earnings/leaderboard")
 def earnings_leaderboard(_auth=Depends(require_auth)):
-    """Get earnings leaderboard for all drivers."""
     return {"drivers": get_all_drivers_earnings()}
 
 
 @app.post("/drivers/{driver_id}/earnings/record")
 def record_earning(driver_id: str, payload: dict, _auth=Depends(require_auth)):
-    """Record a driver earning (usually called after job completion)."""
     job_id = payload.get("job_id")
     amount = payload.get("amount", 0)
     commission_rate = payload.get("commission_rate", 0.15)
     return record_driver_earning(driver_id, job_id, amount, commission_rate)
 
 
-# Multi-stop rides - Update job creation to support waypoints
+# ==================== MULTI-STOP RIDES ====================
+
 @app.post("/jobs/multi-stop")
 def create_multistop_job(payload: dict, _auth=Depends(require_auth)):
-    """Create a multi-stop ride with waypoints."""
-    # Base fare calculation with waypoints
     waypoints = payload.get("waypoints", [])
     total_distance = payload.get("total_distance_km", 5.0)
-    
-    corridor = classify_corridor(
-        payload.get("pickup_text", ""),
-        payload.get("drop_text", ""),
-    )
+    corridor = classify_corridor(payload.get("pickup_text", ""), payload.get("drop_text", ""))
     price, base, dist = estimate_price_usd(total_distance, corridor, peak=False)
-    # Add stop fee for each waypoint
     stop_fee = 0.50 * len(waypoints)
     total_fare = price + stop_fee
-    
-    # Create job with waypoints stored as JSON string
-    import json
+
     job_data = {
         "pickup_text": payload.get("pickup_text"),
         "drop_text": payload.get("drop_text"),
@@ -376,25 +335,235 @@ def create_multistop_job(payload: dict, _auth=Depends(require_auth)):
         "drop_lat": payload.get("drop_lat"),
         "drop_lng": payload.get("drop_lng"),
     }
-    
     job = create_job(job_data)
     drv = get_driver_by_id(payload.get("driver_id")) or pick_driver()
-    update_job(
-        job["id"],
-        status="driver_assigned",
-        driver_id=drv["id"],
-        driver=drv,
-    )
-    
+    update_job(job["id"], status="driver_assigned", driver_id=drv["id"], driver=drv)
     simulate(job["id"])
-    
+
     result = get_job(job["id"])
     result["waypoints"] = waypoints
     result["stop_fee"] = stop_fee
     return result
 
 
-# WebSocket connection manager for live tracking
+# ==================== FOOD DELIVERY ROUTES ====================
+
+@app.get("/restaurants")
+def restaurants(category: str = None, area: str = None,
+                featured: bool = False, limit: int = 50,
+                _auth=Depends(require_auth)):
+    """List restaurants with optional filters."""
+    return {"restaurants": list_restaurants(category=category, area=area, featured_only=featured, limit=limit)}
+
+
+@app.get("/restaurants/search")
+def restaurants_search(q: str = "", limit: int = 20, _auth=Depends(require_auth)):
+    """Search restaurants by name, cuisine, or area."""
+    if not q or len(q) < 2:
+        return {"restaurants": list_restaurants(limit=limit)}
+    return {"restaurants": search_restaurants(q, limit)}
+
+
+@app.get("/restaurants/{restaurant_id}")
+def restaurant_detail(restaurant_id: str, _auth=Depends(require_auth)):
+    """Get restaurant details with full menu."""
+    restaurant = get_restaurant(restaurant_id)
+    if not restaurant:
+        raise HTTPException(404, "Restaurant not found")
+    menu = get_menu(restaurant_id)
+    restaurant["menu"] = menu
+    return restaurant
+
+
+@app.get("/restaurants/{restaurant_id}/menu")
+def restaurant_menu(restaurant_id: str, category: str = None, _auth=Depends(require_auth)):
+    """Get menu for a restaurant."""
+    restaurant = get_restaurant(restaurant_id)
+    if not restaurant:
+        raise HTTPException(404, "Restaurant not found")
+    return {"restaurant_id": restaurant_id, "items": get_menu(restaurant_id, category=category)}
+
+
+@app.post("/food-orders")
+def create_order(order: CreateFoodOrder, _auth=Depends(require_auth)):
+    """Place a new food order."""
+    restaurant = get_restaurant(order.restaurant_id)
+    if not restaurant:
+        raise HTTPException(404, "Restaurant not found")
+    if not restaurant["is_open"]:
+        raise HTTPException(400, "Restaurant is currently closed")
+
+    subtotal = sum(item.price * item.qty for item in order.items)
+    if subtotal < restaurant["min_order"]:
+        raise HTTPException(400, f"Minimum order is ${restaurant['min_order']:.2f}")
+
+    delivery_fee = restaurant["delivery_fee"]
+    discount = 0.0
+
+    # Validate promo code if provided
+    if order.promo_code:
+        promo_result = db_validate_promo(order.promo_code.upper())
+        if promo_result.get("valid"):
+            pct = promo_result["discount"] / 100
+            discount = min(subtotal * pct, promo_result.get("max_discount", subtotal))
+
+    total = subtotal + delivery_fee - discount
+
+    order_data = {
+        "restaurant_id": order.restaurant_id,
+        "items": [item.model_dump() for item in order.items],
+        "subtotal": round(subtotal, 2),
+        "delivery_fee": delivery_fee,
+        "discount": round(discount, 2),
+        "total": round(total, 2),
+        "delivery_address": order.delivery_address,
+        "delivery_lat": order.delivery_lat,
+        "delivery_lng": order.delivery_lng,
+        "payment_method": order.payment_method,
+        "rider_name": order.rider_name,
+        "rider_phone": order.rider_phone,
+        "special_instructions": order.special_instructions,
+        "estimated_delivery_min": restaurant["avg_prep_time_min"] + 15,
+    }
+
+    food_order = create_food_order(order_data)
+
+    # Auto-assign a driver for delivery
+    drv = pick_driver()
+    update_food_order(food_order["id"], status="confirmed", driver_id=drv["id"], driver=drv)
+
+    return get_food_order(food_order["id"])
+
+
+@app.get("/food-orders/{order_id}")
+def get_order(order_id: str, _auth=Depends(require_auth)):
+    """Get food order by ID."""
+    order = get_food_order(order_id)
+    if not order:
+        raise HTTPException(404, "Order not found")
+    return order
+
+
+@app.get("/food-orders")
+def orders_list(status: str = None, limit: int = 50, _auth=Depends(require_auth)):
+    """List food orders."""
+    return {"orders": list_food_orders(status=status, limit=limit)}
+
+
+@app.post("/food-orders/{order_id}/status")
+def update_order_status(order_id: str, payload: dict, _auth=Depends(require_auth)):
+    """Update food order status."""
+    order = get_food_order(order_id)
+    if not order:
+        raise HTTPException(404, "Order not found")
+
+    new_status = payload.get("status")
+    valid_statuses = ["confirmed", "preparing", "ready", "picked_up", "delivering", "delivered", "cancelled"]
+    if new_status not in valid_statuses:
+        raise HTTPException(400, f"Invalid status. Must be one of: {', '.join(valid_statuses)}")
+
+    updates = {"status": new_status}
+    if new_status == "cancelled":
+        updates["cancel_reason"] = payload.get("reason", "")
+
+    updated = update_food_order(order_id, **updates)
+    return updated
+
+
+@app.post("/food-orders/{order_id}/cancel")
+def cancel_order(order_id: str, payload: dict, _auth=Depends(require_auth)):
+    """Cancel a food order."""
+    order = get_food_order(order_id)
+    if not order:
+        raise HTTPException(404, "Order not found")
+    if order["status"] in ["delivered", "cancelled"]:
+        raise HTTPException(400, "Cannot cancel this order")
+
+    reason = payload.get("reason", "Customer cancelled")
+    update_food_order(order_id, status="cancelled", cancel_reason=reason)
+    return {"ok": True, "order_id": order_id, "reason": reason}
+
+
+# ==================== WALLET ROUTES ====================
+
+@app.get("/wallet/balance")
+def wallet_balance_route(_auth=Depends(require_auth)):
+    """Get current user's wallet balance."""
+    user_id = _auth.get("id", "basic_auth_user")
+    balance = get_wallet_balance(user_id)
+    return {"user_id": user_id, "balance": balance}
+
+
+@app.post("/wallet/top-up")
+def wallet_topup_route(data: WalletTopUp, _auth=Depends(require_auth)):
+    """Add money to wallet."""
+    user_id = _auth.get("id", "basic_auth_user")
+    if data.amount <= 0:
+        raise HTTPException(400, "Amount must be positive")
+    result = wallet_top_up(user_id, data.amount, description=f"Top-up via {data.method}")
+    if not result.get("ok"):
+        raise HTTPException(400, result.get("message", "Top-up failed"))
+    return result
+
+
+@app.post("/wallet/pay")
+def wallet_pay_route(data: WalletPayment, _auth=Depends(require_auth)):
+    """Pay from wallet."""
+    user_id = _auth.get("id", "basic_auth_user")
+    if data.amount <= 0:
+        raise HTTPException(400, "Amount must be positive")
+    result = wallet_deduct(
+        user_id, data.amount, txn_type=data.type,
+        reference_id=data.reference_id, description=data.description or "Payment",
+    )
+    if not result.get("ok"):
+        raise HTTPException(400, result.get("message", "Payment failed"))
+    return result
+
+
+@app.get("/wallet/transactions")
+def wallet_transactions_route(limit: int = 50, _auth=Depends(require_auth)):
+    """Get wallet transaction history."""
+    user_id = _auth.get("id", "basic_auth_user")
+    return {"user_id": user_id, "transactions": get_wallet_transactions(user_id, limit)}
+
+
+# ==================== ADMIN STATS ====================
+
+@app.get("/admin/stats")
+def admin_stats(_auth=Depends(require_auth)):
+    """Get admin dashboard statistics."""
+    jobs = list_jobs(limit=9999)
+    food_orders = list_food_orders(limit=9999)
+    drivers = get_all_drivers()
+    user_count = db_get_user_count()
+
+    ride_revenue = sum(j.get("fare_usd") or 0 for j in jobs)
+    food_revenue = sum(o.get("total") or 0 for o in food_orders)
+
+    return {
+        "total_rides": len(jobs),
+        "total_food_orders": len(food_orders),
+        "total_drivers": len(drivers),
+        "total_riders": user_count,
+        "ride_revenue": round(ride_revenue, 2),
+        "food_revenue": round(food_revenue, 2),
+        "total_revenue": round(ride_revenue + food_revenue, 2),
+        "recent_rides": jobs[:10],
+        "recent_food_orders": food_orders[:10],
+    }
+
+
+@app.get("/admin/users")
+def admin_users(limit: int = 100, _auth=Depends(require_auth)):
+    """List all registered users."""
+    users = db_list_users(limit)
+    safe_users = [{k: v for k, v in u.items() if k != "password_hash"} for u in users]
+    return {"users": safe_users}
+
+
+# ==================== WEBSOCKET ====================
+
 class ConnectionManager:
     def __init__(self):
         self.active_connections: Dict[str, Set[WebSocket]] = {}
@@ -419,7 +588,6 @@ class ConnectionManager:
                     await connection.send_json(message)
                 except Exception:
                     dead_connections.add(connection)
-            # Clean up dead connections
             for conn in dead_connections:
                 self.active_connections[job_id].discard(conn)
 
@@ -430,7 +598,6 @@ manager = ConnectionManager()
 @app.websocket("/ws/track/{job_id}")
 async def websocket_track(websocket: WebSocket, job_id: str):
     """WebSocket endpoint for real-time job tracking."""
-    # Basic auth via query param for WebSocket
     token = websocket.query_params.get("token", "")
     expected_token = f"{EXPECTED_USER}:{EXPECTED_PASS}"
     if token != expected_token:
@@ -439,39 +606,21 @@ async def websocket_track(websocket: WebSocket, job_id: str):
 
     await manager.connect(websocket, job_id)
     try:
-        # Send initial job state
         job = get_job(job_id)
         if job:
-            await websocket.send_json({
-                "type": "job_update",
-                "job": job,
-            })
+            await websocket.send_json({"type": "job_update", "job": job})
 
-        # Keep connection alive and send updates
         while True:
             try:
-                # Wait for messages or just keep alive
-                data = await asyncio.wait_for(
-                    websocket.receive_text(),
-                    timeout=2.0
-                )
-                # Handle ping/pong
+                data = await asyncio.wait_for(websocket.receive_text(), timeout=2.0)
                 if data == "ping":
                     await websocket.send_text("pong")
             except asyncio.TimeoutError:
-                # Send job update every 2 seconds
                 job = get_job(job_id)
                 if job:
-                    await websocket.send_json({
-                        "type": "job_update",
-                        "job": job,
-                    })
-                    # Check if job is complete
+                    await websocket.send_json({"type": "job_update", "job": job})
                     if job.get("status") == "complete":
-                        await websocket.send_json({
-                            "type": "ride_complete",
-                            "job": job,
-                        })
+                        await websocket.send_json({"type": "ride_complete", "job": job})
                         break
     except WebSocketDisconnect:
         pass
@@ -479,14 +628,12 @@ async def websocket_track(websocket: WebSocket, job_id: str):
         manager.disconnect(websocket, job_id)
 
 
-# Endpoint to manually push updates (for testing)
 @app.post("/ws/push/{job_id}")
 async def push_update(job_id: str, payload: dict, _auth=Depends(require_auth)):
     """Push an update to all WebSocket clients watching a job."""
     job = get_job(job_id)
     if not job:
         raise HTTPException(404, "Job not found")
-    
     await manager.broadcast_to_job(job_id, {
         "type": payload.get("type", "job_update"),
         "job": job,

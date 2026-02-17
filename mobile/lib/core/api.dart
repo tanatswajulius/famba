@@ -4,15 +4,60 @@ import 'package:connectivity_plus/connectivity_plus.dart';
 import 'offline_queue.dart';
 
 class Api {
-  static String base = const String.fromEnvironment('API_BASE', defaultValue: 'http://localhost:8000');
+  static String base = const String.fromEnvironment(
+    'API_BASE', defaultValue: 'http://localhost:8000',
+  );
   static String basicUser = const String.fromEnvironment('API_USER', defaultValue: 'demo');
   static String basicPass = const String.fromEnvironment('API_PASS', defaultValue: 'demo123');
 
-  static String get _authHeader => 'Basic ${base64Encode(utf8.encode('$basicUser:$basicPass'))}';
+  // JWT token — set after login/register
+  static String? _jwtToken;
+  static void setToken(String? token) => _jwtToken = token;
+
+  static String get _basicAuth => 'Basic ${base64Encode(utf8.encode('$basicUser:$basicPass'))}';
+
   static Map<String, String> _headers() => {
-        'Content-Type': 'application/json',
-        'Authorization': _authHeader,
-      };
+    'Content-Type': 'application/json',
+    'Authorization': _jwtToken != null ? 'Bearer $_jwtToken' : _basicAuth,
+  };
+
+  // ==================== AUTH ====================
+
+  static Future<Map<String, dynamic>> register({
+    required String phone,
+    required String name,
+    required String password,
+    String userType = 'rider',
+  }) async {
+    final res = await http.post(
+      Uri.parse('$base/auth/register'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'phone': phone, 'name': name,
+        'password': password, 'user_type': userType,
+      }),
+    );
+    return jsonDecode(res.body);
+  }
+
+  static Future<Map<String, dynamic>> login({
+    required String phone,
+    required String password,
+  }) async {
+    final res = await http.post(
+      Uri.parse('$base/auth/login'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'phone': phone, 'password': password}),
+    );
+    return jsonDecode(res.body);
+  }
+
+  static Future<Map<String, dynamic>> getMe() async {
+    final res = await http.get(Uri.parse('$base/auth/me'), headers: _headers());
+    return jsonDecode(res.body);
+  }
+
+  // ==================== RIDES ====================
 
   static Future<Map<String, dynamic>> quote({
     required String pickup,
@@ -22,7 +67,10 @@ class Api {
   }) async {
     final res = await http.post(Uri.parse('$base/quote'),
       headers: _headers(),
-      body: jsonEncode({'pickup_text': pickup, 'drop_text': drop, 'distance_km': distanceKm, 'peak': peak}));
+      body: jsonEncode({
+        'pickup_text': pickup, 'drop_text': drop,
+        'distance_km': distanceKm, 'peak': peak,
+      }));
     return jsonDecode(res.body);
   }
 
@@ -38,47 +86,28 @@ class Api {
     final url = '$base/jobs';
     final headers = _headers();
     final body = jsonEncode({
-      'pickup_text': pickup,
-      'drop_text': drop,
-      'distance_km': distanceKm,
-      'rider_name': riderName,
+      'pickup_text': pickup, 'drop_text': drop,
+      'distance_km': distanceKm, 'rider_name': riderName,
       if (driverId != null) 'driver_id': driverId,
       if (fareUsd != null) 'fare_usd': fareUsd,
       if (paymentMethod != null) 'payment_method': paymentMethod,
     });
 
     try {
-      // Check connectivity
       final results = await Connectivity().checkConnectivity();
       if (results.isEmpty || results.first == ConnectivityResult.none) {
         throw Exception('No internet connection');
       }
-
-      final res = await http.post(
-        Uri.parse(url),
-        headers: headers,
-        body: body,
-      );
+      final res = await http.post(Uri.parse(url), headers: headers, body: body);
       return jsonDecode(res.body);
     } catch (e) {
-      // Queue the request for later if offline
       final tempId = 'temp_${DateTime.now().millisecondsSinceEpoch}';
       final queue = await OfflineQueue.getInstance();
-      await queue.enqueue(QueuedRequest(
-        url: url,
-        headers: headers,
-        body: body,
-        tempId: tempId,
-      ));
-      
-      // Return a temporary job object
+      await queue.enqueue(QueuedRequest(url: url, headers: headers, body: body, tempId: tempId));
       return {
-        'id': tempId,
-        'status': 'queued',
-        'pickup_text': pickup,
-        'drop_text': drop,
-        'distance_km': distanceKm,
-        'rider_name': riderName,
+        'id': tempId, 'status': 'queued',
+        'pickup_text': pickup, 'drop_text': drop,
+        'distance_km': distanceKm, 'rider_name': riderName,
       };
     }
   }
@@ -88,225 +117,220 @@ class Api {
     return jsonDecode(res.body);
   }
 
-  static Future<Map<String, dynamic>> reportIssue({
-    String? jobId,
-    required String issueType,
-  }) async {
-    final res = await http.post(
-      Uri.parse('$base/issues'),
-      headers: _headers(),
-      body: jsonEncode({'job_id': jobId, 'issue_type': issueType}),
-    );
+  static Future<Map<String, dynamic>> reportIssue({String? jobId, required String issueType}) async {
+    final res = await http.post(Uri.parse('$base/issues'), headers: _headers(),
+      body: jsonEncode({'job_id': jobId, 'issue_type': issueType}));
     return jsonDecode(res.body);
   }
 
-  static Future<Map<String, dynamic>> recommend({
-    required String corridor,
-  }) async {
-    final res = await http.post(
-      Uri.parse('$base/recommend'),
-      headers: _headers(),
-      body: jsonEncode({'corridor': corridor}),
-    );
+  static Future<Map<String, dynamic>> recommend({required String corridor}) async {
+    final res = await http.post(Uri.parse('$base/recommend'), headers: _headers(),
+      body: jsonEncode({'corridor': corridor}));
     return jsonDecode(res.body);
   }
 
   static Future<Map<String, dynamic>> rateRide({
-    required String jobId,
-    required String driverId,
-    required double rating,
-    String? comment,
+    required String jobId, required String driverId,
+    required double rating, String? comment,
   }) async {
-    final res = await http.post(
-      Uri.parse('$base/ratings'),
-      headers: _headers(),
-      body: jsonEncode({
-        'job_id': jobId,
-        'driver_id': driverId,
-        'rating': rating,
-        'comment': comment,
-      }),
-    );
+    final res = await http.post(Uri.parse('$base/ratings'), headers: _headers(),
+      body: jsonEncode({'job_id': jobId, 'driver_id': driverId, 'rating': rating, 'comment': comment}));
     return jsonDecode(res.body);
   }
 
-  static Future<Map<String, dynamic>> validatePromo({
-    required String code,
-  }) async {
-    final res = await http.post(
-      Uri.parse('$base/promo/validate'),
-      headers: _headers(),
-      body: jsonEncode({'code': code}),
-    );
+  static Future<Map<String, dynamic>> validatePromo({required String code}) async {
+    final res = await http.post(Uri.parse('$base/promo/validate'), headers: _headers(),
+      body: jsonEncode({'code': code}));
     return jsonDecode(res.body);
   }
 
-  static Future<Map<String, dynamic>> cancelJob({
-    required String jobId,
-    required String reason,
-  }) async {
-    final res = await http.post(
-      Uri.parse('$base/jobs/$jobId/cancel'),
-      headers: _headers(),
-      body: jsonEncode({'reason': reason}),
-    );
+  static Future<Map<String, dynamic>> cancelJob({required String jobId, required String reason}) async {
+    final res = await http.post(Uri.parse('$base/jobs/$jobId/cancel'), headers: _headers(),
+      body: jsonEncode({'reason': reason}));
     return jsonDecode(res.body);
   }
 
   static Future<Map<String, dynamic>> scheduleJob({
-    required String pickup,
-    required String drop,
-    required double distanceKm,
-    required String riderName,
-    required DateTime scheduledTime,
-    String? paymentMethod,
+    required String pickup, required String drop, required double distanceKm,
+    required String riderName, required DateTime scheduledTime, String? paymentMethod,
   }) async {
-    final res = await http.post(
-      Uri.parse('$base/jobs/schedule'),
-      headers: _headers(),
+    final res = await http.post(Uri.parse('$base/jobs/schedule'), headers: _headers(),
       body: jsonEncode({
-        'pickup_text': pickup,
-        'drop_text': drop,
-        'distance_km': distanceKm,
-        'rider_name': riderName,
-        'scheduled_time': scheduledTime.toIso8601String(),
-        'payment_method': paymentMethod,
-      }),
-    );
+        'pickup_text': pickup, 'drop_text': drop,
+        'distance_km': distanceKm, 'rider_name': riderName,
+        'scheduled_time': scheduledTime.toIso8601String(), 'payment_method': paymentMethod,
+      }));
     return jsonDecode(res.body);
   }
 
-  static Future<List<Map<String, dynamic>>> searchLocations({
-    required String query,
-    int limit = 10,
-  }) async {
+  static Future<List<Map<String, dynamic>>> searchLocations({required String query, int limit = 10}) async {
     final res = await http.get(
       Uri.parse('$base/locations/search?q=${Uri.encodeComponent(query)}&limit=$limit'),
-      headers: _headers(),
-    );
+      headers: _headers());
     final data = jsonDecode(res.body);
     return List<Map<String, dynamic>>.from(data['locations'] ?? []);
   }
 
-  static Future<List<Map<String, dynamic>>> getPopularLocations({
-    int limit = 10,
-  }) async {
-    final res = await http.get(
-      Uri.parse('$base/locations/popular?limit=$limit'),
-      headers: _headers(),
-    );
+  static Future<List<Map<String, dynamic>>> getPopularLocations({int limit = 10}) async {
+    final res = await http.get(Uri.parse('$base/locations/popular?limit=$limit'), headers: _headers());
     final data = jsonDecode(res.body);
     return List<Map<String, dynamic>>.from(data['locations'] ?? []);
   }
 
-  // Quick fare estimate
   static Future<Map<String, dynamic>> quickEstimate({
-    required String pickup,
-    required String drop,
-    required double distanceKm,
+    required String pickup, required String drop, required double distanceKm,
   }) async {
-    final res = await http.post(
-      Uri.parse('$base/estimate'),
-      headers: _headers(),
-      body: jsonEncode({
-        'pickup_text': pickup,
-        'drop_text': drop,
-        'distance_km': distanceKm,
-      }),
-    );
+    final res = await http.post(Uri.parse('$base/estimate'), headers: _headers(),
+      body: jsonEncode({'pickup_text': pickup, 'drop_text': drop, 'distance_km': distanceKm}));
     return jsonDecode(res.body);
   }
 
-  // Referral endpoints
-  static Future<Map<String, dynamic>> createReferralCode({
-    required String name,
-    String? phone,
-  }) async {
-    final res = await http.post(
-      Uri.parse('$base/referrals/create'),
-      headers: _headers(),
-      body: jsonEncode({'name': name, 'phone': phone}),
-    );
+  // Referrals
+  static Future<Map<String, dynamic>> createReferralCode({required String name, String? phone}) async {
+    final res = await http.post(Uri.parse('$base/referrals/create'), headers: _headers(),
+      body: jsonEncode({'name': name, 'phone': phone}));
     return jsonDecode(res.body);
   }
 
   static Future<Map<String, dynamic>> getReferralInfo(String code) async {
-    final res = await http.get(
-      Uri.parse('$base/referrals/$code'),
-      headers: _headers(),
-    );
+    final res = await http.get(Uri.parse('$base/referrals/$code'), headers: _headers());
     return jsonDecode(res.body);
   }
 
-  static Future<Map<String, dynamic>> applyReferralCode({
-    required String code,
-    required String name,
-    String? phone,
-  }) async {
-    final res = await http.post(
-      Uri.parse('$base/referrals/apply'),
-      headers: _headers(),
-      body: jsonEncode({'code': code, 'name': name, 'phone': phone}),
-    );
+  static Future<Map<String, dynamic>> applyReferralCode({required String code, required String name, String? phone}) async {
+    final res = await http.post(Uri.parse('$base/referrals/apply'), headers: _headers(),
+      body: jsonEncode({'code': code, 'name': name, 'phone': phone}));
     return jsonDecode(res.body);
   }
 
   static Future<Map<String, dynamic>> getReferralStats(String code) async {
-    final res = await http.get(
-      Uri.parse('$base/referrals/$code/stats'),
-      headers: _headers(),
-    );
+    final res = await http.get(Uri.parse('$base/referrals/$code/stats'), headers: _headers());
     return jsonDecode(res.body);
   }
 
-  // Driver earnings endpoints
+  // Driver earnings
   static Future<Map<String, dynamic>> getDriverEarnings(String driverId) async {
-    final res = await http.get(
-      Uri.parse('$base/drivers/$driverId/earnings'),
-      headers: _headers(),
-    );
+    final res = await http.get(Uri.parse('$base/drivers/$driverId/earnings'), headers: _headers());
     return jsonDecode(res.body);
   }
 
   static Future<Map<String, dynamic>> getEarningsLeaderboard() async {
-    final res = await http.get(
-      Uri.parse('$base/drivers/earnings/leaderboard'),
-      headers: _headers(),
-    );
+    final res = await http.get(Uri.parse('$base/drivers/earnings/leaderboard'), headers: _headers());
     return jsonDecode(res.body);
   }
 
-  // Multi-stop rides
+  // Multi-stop
   static Future<Map<String, dynamic>> createMultiStopJob({
-    required String pickup,
-    required String drop,
+    required String pickup, required String drop,
     required List<Map<String, dynamic>> waypoints,
-    required double totalDistanceKm,
-    required String riderName,
-    String? driverId,
-    String? paymentMethod,
-    double? pickupLat,
-    double? pickupLng,
-    double? dropLat,
-    double? dropLng,
+    required double totalDistanceKm, required String riderName,
+    String? driverId, String? paymentMethod,
+    double? pickupLat, double? pickupLng, double? dropLat, double? dropLng,
   }) async {
-    final res = await http.post(
-      Uri.parse('$base/jobs/multi-stop'),
-      headers: _headers(),
+    final res = await http.post(Uri.parse('$base/jobs/multi-stop'), headers: _headers(),
       body: jsonEncode({
-        'pickup_text': pickup,
-        'drop_text': drop,
-        'waypoints': waypoints,
-        'total_distance_km': totalDistanceKm,
-        'rider_name': riderName,
+        'pickup_text': pickup, 'drop_text': drop, 'waypoints': waypoints,
+        'total_distance_km': totalDistanceKm, 'rider_name': riderName,
         if (driverId != null) 'driver_id': driverId,
         if (paymentMethod != null) 'payment_method': paymentMethod,
         if (pickupLat != null) 'pickup_lat': pickupLat,
         if (pickupLng != null) 'pickup_lng': pickupLng,
         if (dropLat != null) 'drop_lat': dropLat,
         if (dropLng != null) 'drop_lng': dropLng,
-      }),
-    );
+      }));
     return jsonDecode(res.body);
+  }
+
+  // ==================== FOOD DELIVERY ====================
+
+  static Future<List<Map<String, dynamic>>> getRestaurants({
+    String? category, String? area, bool featured = false,
+  }) async {
+    var url = '$base/restaurants?limit=50';
+    if (category != null) url += '&category=$category';
+    if (area != null) url += '&area=$area';
+    if (featured) url += '&featured=true';
+    final res = await http.get(Uri.parse(url), headers: _headers());
+    final data = jsonDecode(res.body);
+    return List<Map<String, dynamic>>.from(data['restaurants'] ?? []);
+  }
+
+  static Future<Map<String, dynamic>> getRestaurant(String id) async {
+    final res = await http.get(Uri.parse('$base/restaurants/$id'), headers: _headers());
+    return jsonDecode(res.body);
+  }
+
+  static Future<List<Map<String, dynamic>>> searchRestaurants(String query) async {
+    final res = await http.get(
+      Uri.parse('$base/restaurants/search?q=${Uri.encodeComponent(query)}'),
+      headers: _headers());
+    final data = jsonDecode(res.body);
+    return List<Map<String, dynamic>>.from(data['restaurants'] ?? []);
+  }
+
+  static Future<Map<String, dynamic>> createFoodOrder({
+    required String restaurantId,
+    required List<Map<String, dynamic>> items,
+    required String deliveryAddress,
+    double? deliveryLat, double? deliveryLng,
+    String paymentMethod = 'cash',
+    String? riderName, String? riderPhone,
+    String? specialInstructions, String? promoCode,
+  }) async {
+    final res = await http.post(Uri.parse('$base/food-orders'), headers: _headers(),
+      body: jsonEncode({
+        'restaurant_id': restaurantId, 'items': items,
+        'delivery_address': deliveryAddress,
+        if (deliveryLat != null) 'delivery_lat': deliveryLat,
+        if (deliveryLng != null) 'delivery_lng': deliveryLng,
+        'payment_method': paymentMethod,
+        if (riderName != null) 'rider_name': riderName,
+        if (riderPhone != null) 'rider_phone': riderPhone,
+        if (specialInstructions != null) 'special_instructions': specialInstructions,
+        if (promoCode != null) 'promo_code': promoCode,
+      }));
+    return jsonDecode(res.body);
+  }
+
+  static Future<Map<String, dynamic>> getFoodOrder(String orderId) async {
+    final res = await http.get(Uri.parse('$base/food-orders/$orderId'), headers: _headers());
+    return jsonDecode(res.body);
+  }
+
+  static Future<Map<String, dynamic>> cancelFoodOrder({required String orderId, String? reason}) async {
+    final res = await http.post(Uri.parse('$base/food-orders/$orderId/cancel'), headers: _headers(),
+      body: jsonEncode({'reason': reason ?? 'Customer cancelled'}));
+    return jsonDecode(res.body);
+  }
+
+  // ==================== WALLET ====================
+
+  static Future<Map<String, dynamic>> getWalletBalance() async {
+    final res = await http.get(Uri.parse('$base/wallet/balance'), headers: _headers());
+    return jsonDecode(res.body);
+  }
+
+  static Future<Map<String, dynamic>> walletTopUp({required double amount, String method = 'ecocash'}) async {
+    final res = await http.post(Uri.parse('$base/wallet/top-up'), headers: _headers(),
+      body: jsonEncode({'amount': amount, 'method': method}));
+    return jsonDecode(res.body);
+  }
+
+  static Future<Map<String, dynamic>> walletPay({
+    required double amount, required String referenceId,
+    String type = 'ride_payment', String? description,
+  }) async {
+    final res = await http.post(Uri.parse('$base/wallet/pay'), headers: _headers(),
+      body: jsonEncode({
+        'amount': amount, 'reference_id': referenceId,
+        'type': type, 'description': description,
+      }));
+    return jsonDecode(res.body);
+  }
+
+  static Future<List<Map<String, dynamic>>> getWalletTransactions() async {
+    final res = await http.get(Uri.parse('$base/wallet/transactions'), headers: _headers());
+    final data = jsonDecode(res.body);
+    return List<Map<String, dynamic>>.from(data['transactions'] ?? []);
   }
 }

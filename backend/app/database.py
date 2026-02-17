@@ -6,7 +6,7 @@ from datetime import datetime
 from typing import Dict, List, Optional
 from contextlib import contextmanager
 
-from sqlalchemy import create_engine, Column, String, Float, Integer, Boolean, Text, DateTime, ForeignKey
+from sqlalchemy import create_engine, Column, String, Float, Integer, Boolean, Text, DateTime, ForeignKey, func
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session, relationship
 
@@ -32,10 +32,11 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
 
-# SQLAlchemy Models
+# ==================== SQLAlchemy Models ====================
+
 class User(Base):
     __tablename__ = "users"
-    
+
     id = Column(String(50), primary_key=True)
     phone = Column(String(20), unique=True, nullable=False, index=True)
     name = Column(String(100), nullable=False)
@@ -54,7 +55,7 @@ class User(Base):
 
 class Driver(Base):
     __tablename__ = "drivers"
-    
+
     id = Column(String(50), primary_key=True)
     user_id = Column(String(50), ForeignKey("users.id"), nullable=True)
     name = Column(String(100), nullable=False)
@@ -77,7 +78,7 @@ class Driver(Base):
 
 class Job(Base):
     __tablename__ = "jobs"
-    
+
     id = Column(String(50), primary_key=True)
     rider_id = Column(String(50), ForeignKey("users.id"), nullable=True)
     driver_id = Column(String(50), ForeignKey("drivers.id"), nullable=True)
@@ -113,7 +114,7 @@ class Job(Base):
 
 class Rating(Base):
     __tablename__ = "ratings"
-    
+
     id = Column(Integer, primary_key=True, autoincrement=True)
     job_id = Column(String(50), ForeignKey("jobs.id"), nullable=True)
     driver_id = Column(String(50), ForeignKey("drivers.id"), nullable=False)
@@ -125,7 +126,7 @@ class Rating(Base):
 
 class PromoCode(Base):
     __tablename__ = "promo_codes"
-    
+
     code = Column(String(20), primary_key=True)
     discount_percent = Column(Integer, nullable=False)
     max_discount = Column(Float, nullable=True)
@@ -139,7 +140,7 @@ class PromoCode(Base):
 
 class Location(Base):
     __tablename__ = "locations"
-    
+
     id = Column(Integer, primary_key=True, autoincrement=True)
     name = Column(String(100), nullable=False)
     address = Column(String(255), nullable=True)
@@ -152,7 +153,7 @@ class Location(Base):
 
 class Referral(Base):
     __tablename__ = "referrals"
-    
+
     id = Column(Integer, primary_key=True, autoincrement=True)
     referrer_code = Column(String(20), unique=True, nullable=False)
     referrer_id = Column(String(50), ForeignKey("users.id"), nullable=True)
@@ -165,7 +166,7 @@ class Referral(Base):
 
 class ReferralSignup(Base):
     __tablename__ = "referral_signups"
-    
+
     id = Column(Integer, primary_key=True, autoincrement=True)
     referral_code = Column(String(20), ForeignKey("referrals.referrer_code"), nullable=False)
     referee_id = Column(String(50), ForeignKey("users.id"), nullable=True)
@@ -177,7 +178,7 @@ class ReferralSignup(Base):
 
 class DriverEarning(Base):
     __tablename__ = "driver_earnings"
-    
+
     id = Column(Integer, primary_key=True, autoincrement=True)
     driver_id = Column(String(50), ForeignKey("drivers.id"), nullable=False)
     job_id = Column(String(50), ForeignKey("jobs.id"), nullable=True)
@@ -185,6 +186,96 @@ class DriverEarning(Base):
     commission = Column(Float, default=0.0)
     net_amount = Column(Float, nullable=False)
     type = Column(String(20), default="ride")
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+# ==================== FOOD DELIVERY Models ====================
+
+class Restaurant(Base):
+    __tablename__ = "restaurants"
+
+    id = Column(String(50), primary_key=True)
+    name = Column(String(100), nullable=False)
+    description = Column(Text, nullable=True)
+    address = Column(String(255), nullable=True)
+    area = Column(String(100), nullable=True)
+    lat = Column(Float, nullable=True)
+    lng = Column(Float, nullable=True)
+    phone = Column(String(20), nullable=True)
+    image_url = Column(String(255), nullable=True)
+    category = Column(String(50), default="restaurant")  # fast_food, restaurant, cafe, grocery, bakery
+    cuisine = Column(String(100), nullable=True)  # e.g. "Zimbabwean, Grills, Fast Food"
+    rating = Column(Float, default=4.5)
+    total_orders = Column(Integer, default=0)
+    delivery_fee = Column(Float, default=1.00)
+    min_order = Column(Float, default=2.00)
+    avg_prep_time_min = Column(Integer, default=25)
+    opening_time = Column(String(10), default="08:00")
+    closing_time = Column(String(10), default="22:00")
+    is_open = Column(Boolean, default=True)
+    is_active = Column(Boolean, default=True)
+    is_featured = Column(Boolean, default=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class MenuItem(Base):
+    __tablename__ = "menu_items"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    restaurant_id = Column(String(50), ForeignKey("restaurants.id"), nullable=False)
+    name = Column(String(100), nullable=False)
+    description = Column(Text, nullable=True)
+    price = Column(Float, nullable=False)
+    image_url = Column(String(255), nullable=True)
+    category = Column(String(50), default="main")  # main, side, drink, dessert, combo
+    is_available = Column(Boolean, default=True)
+    is_popular = Column(Boolean, default=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class FoodOrder(Base):
+    __tablename__ = "food_orders"
+
+    id = Column(String(50), primary_key=True)
+    rider_id = Column(String(50), ForeignKey("users.id"), nullable=True)
+    restaurant_id = Column(String(50), ForeignKey("restaurants.id"), nullable=False)
+    driver_id = Column(String(50), ForeignKey("drivers.id"), nullable=True)
+    status = Column(String(30), default="placed")  # placed, confirmed, preparing, ready, picked_up, delivering, delivered, cancelled
+    items_json = Column(Text, nullable=False)  # JSON array of {menu_item_id, name, qty, price}
+    subtotal = Column(Float, nullable=False)
+    delivery_fee = Column(Float, default=1.00)
+    discount = Column(Float, default=0.0)
+    total = Column(Float, nullable=False)
+    delivery_address = Column(String(255), nullable=True)
+    delivery_lat = Column(Float, nullable=True)
+    delivery_lng = Column(Float, nullable=True)
+    payment_method = Column(String(30), default="cash")
+    payment_status = Column(String(20), default="pending")
+    rider_name = Column(String(100), nullable=True)
+    rider_phone = Column(String(20), nullable=True)
+    driver_json = Column(Text, nullable=True)
+    special_instructions = Column(Text, nullable=True)
+    estimated_delivery_min = Column(Integer, nullable=True)
+    confirmed_at = Column(DateTime, nullable=True)
+    picked_up_at = Column(DateTime, nullable=True)
+    delivered_at = Column(DateTime, nullable=True)
+    cancel_reason = Column(String(255), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+# ==================== WALLET Models ====================
+
+class WalletTransaction(Base):
+    __tablename__ = "wallet_transactions"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(String(50), ForeignKey("users.id"), nullable=False)
+    type = Column(String(30), nullable=False)  # top_up, ride_payment, food_payment, referral_credit, refund, withdrawal
+    amount = Column(Float, nullable=False)  # positive = credit, negative = debit
+    balance_after = Column(Float, nullable=False)
+    reference_id = Column(String(50), nullable=True)  # job_id or order_id
+    description = Column(String(255), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
@@ -215,12 +306,12 @@ def init_db():
 
 def _seed_initial_data(db: Session):
     """Seed initial data if tables are empty."""
-    
+
     # Seed drivers
     if db.query(Driver).count() == 0:
         drivers = [
-            Driver(id="d1", name="Tendai", rating=4.9, lat=-17.829, lng=31.052, 
-                   vehicle_make="Bajaj", vehicle_model="Boxer", vehicle_color="Green", 
+            Driver(id="d1", name="Tendai", rating=4.9, lat=-17.829, lng=31.052,
+                   vehicle_make="Bajaj", vehicle_model="Boxer", vehicle_color="Green",
                    license_plate="MBK-2489", is_active=True, is_verified=True),
             Driver(id="d2", name="Rudo", rating=4.8, lat=-17.825, lng=31.048,
                    vehicle_make="TVS", vehicle_model="Apache", vehicle_color="Red",
@@ -233,19 +324,21 @@ def _seed_initial_data(db: Session):
                    license_plate="MBK-5678", is_active=True, is_verified=True),
         ]
         db.add_all(drivers)
-    
-    # Seed promo codes
+
+    # Seed promo codes (updated expiry dates)
     if db.query(PromoCode).count() == 0:
         promos = [
-            PromoCode(code="FAMBA50", discount_percent=50, max_discount=5.00, 
-                     expires_at=datetime(2025, 12, 31, 23, 59, 59)),
+            PromoCode(code="FAMBA50", discount_percent=50, max_discount=5.00,
+                     expires_at=datetime(2027, 6, 30, 23, 59, 59)),
             PromoCode(code="RIDE25", discount_percent=25, max_discount=3.00,
-                     expires_at=datetime(2026, 1, 15, 23, 59, 59)),
+                     expires_at=datetime(2027, 6, 30, 23, 59, 59)),
             PromoCode(code="FIRST10", discount_percent=10, max_discount=2.00,
-                     expires_at=datetime(2026, 6, 30, 23, 59, 59)),
+                     expires_at=datetime(2027, 6, 30, 23, 59, 59)),
+            PromoCode(code="FOOD20", discount_percent=20, max_discount=4.00,
+                     expires_at=datetime(2027, 6, 30, 23, 59, 59)),
         ]
         db.add_all(promos)
-    
+
     # Seed locations
     if db.query(Location).count() == 0:
         locations = [
@@ -266,15 +359,199 @@ def _seed_initial_data(db: Session):
             Location(name="Causeway", address="Samora Machel Ave", area="CBD", lat=-17.8270, lng=31.0500, category="government", popularity=75),
         ]
         db.add_all(locations)
-    
+
+    # Seed restaurants (Harare-based)
+    if db.query(Restaurant).count() == 0:
+        restaurants = [
+            Restaurant(
+                id="rest_01", name="Chicken Inn CBD", description="Zimbabwe's favourite fried chicken. Crispy, juicy, and always fresh.",
+                address="First St & Jason Moyo Ave", area="CBD", lat=-17.8290, lng=31.0520,
+                phone="0242700100", category="fast_food", cuisine="Fried Chicken, Fast Food",
+                rating=4.3, delivery_fee=1.00, min_order=2.00, avg_prep_time_min=15,
+                is_featured=True,
+            ),
+            Restaurant(
+                id="rest_02", name="Nando's Avondale", description="Flame-grilled PERi-PERi chicken with that legendary Nando's flavour.",
+                address="King George Rd, Avondale", area="Avondale", lat=-17.7925, lng=31.0418,
+                phone="0242334455", category="restaurant", cuisine="PERi-PERi, Grills",
+                rating=4.5, delivery_fee=1.50, min_order=3.00, avg_prep_time_min=20,
+                is_featured=True,
+            ),
+            Restaurant(
+                id="rest_03", name="Galito's Eastgate", description="Flame-grilled chicken at great prices. Meals, wraps, and sides.",
+                address="Eastgate Mall, Robert Mugabe Rd", area="CBD", lat=-17.8312, lng=31.0548,
+                phone="0242750300", category="fast_food", cuisine="Grilled Chicken, Fast Food",
+                rating=4.2, delivery_fee=1.00, min_order=2.00, avg_prep_time_min=15,
+            ),
+            Restaurant(
+                id="rest_04", name="Mambo's Grill", description="Authentic Zimbabwean braai and sadza. Home-cooked taste with generous portions.",
+                address="Samora Machel Ave, CBD", area="CBD", lat=-17.8275, lng=31.0505,
+                phone="0242780100", category="restaurant", cuisine="Zimbabwean, Braai, Traditional",
+                rating=4.6, delivery_fee=1.00, min_order=2.50, avg_prep_time_min=25,
+                is_featured=True,
+            ),
+            Restaurant(
+                id="rest_05", name="Spur Borrowdale", description="Family restaurant with ribs, steaks, burgers, and great desserts.",
+                address="Borrowdale Rd, Sam Levy's Village", area="Borrowdale", lat=-17.7852, lng=31.0648,
+                phone="0242885500", category="restaurant", cuisine="Steaks, Burgers, Family",
+                rating=4.4, delivery_fee=2.00, min_order=5.00, avg_prep_time_min=30,
+            ),
+            Restaurant(
+                id="rest_06", name="Creamy Inn", description="Ice cream, milkshakes, and soft serve. Perfect treats for Harare's sunny days.",
+                address="Joina City, CBD", area="CBD", lat=-17.8296, lng=31.0532,
+                phone="0242700200", category="cafe", cuisine="Ice Cream, Desserts, Drinks",
+                rating=4.1, delivery_fee=1.00, min_order=1.50, avg_prep_time_min=10,
+            ),
+            Restaurant(
+                id="rest_07", name="Pizza Inn Sam Levy's", description="Fresh pizza made to order. Wide range of toppings and combos.",
+                address="Sam Levy's Village, Borrowdale", area="Borrowdale", lat=-17.7848, lng=31.0652,
+                phone="0242885600", category="fast_food", cuisine="Pizza, Italian, Fast Food",
+                rating=4.3, delivery_fee=1.50, min_order=3.00, avg_prep_time_min=20,
+                is_featured=True,
+            ),
+            Restaurant(
+                id="rest_08", name="Mimi's Kitchen", description="Home-style Zimbabwean cooking. Sadza, stews, and fresh vegetables daily.",
+                address="Mbare Musika area", area="Mbare", lat=-17.8605, lng=31.0355,
+                phone="0772100200", category="restaurant", cuisine="Zimbabwean, Home Cooking, Traditional",
+                rating=4.7, delivery_fee=0.75, min_order=1.50, avg_prep_time_min=20,
+            ),
+        ]
+        db.add_all(restaurants)
+
+    # Seed menu items
+    if db.query(MenuItem).count() == 0:
+        menu_items = [
+            # Chicken Inn
+            MenuItem(restaurant_id="rest_01", name="2 Piece Chicken & Chips", description="2 crispy fried chicken pieces with golden chips", price=3.50, category="main", is_popular=True),
+            MenuItem(restaurant_id="rest_01", name="Chicken Burger Combo", description="Chicken burger, chips, and a drink", price=4.50, category="combo", is_popular=True),
+            MenuItem(restaurant_id="rest_01", name="6 Piece Bucket", description="6 pieces of crispy fried chicken", price=8.00, category="main"),
+            MenuItem(restaurant_id="rest_01", name="Chip Roll", description="Chips in a fresh roll with sauce", price=1.50, category="side"),
+            MenuItem(restaurant_id="rest_01", name="Coleslaw", description="Fresh creamy coleslaw", price=1.00, category="side"),
+            MenuItem(restaurant_id="rest_01", name="Coca-Cola 500ml", description="Ice cold Coca-Cola", price=1.00, category="drink"),
+            # Nando's
+            MenuItem(restaurant_id="rest_02", name="Quarter Chicken & 2 Sides", description="Quarter flame-grilled PERi-PERi chicken with 2 sides of your choice", price=6.00, category="main", is_popular=True),
+            MenuItem(restaurant_id="rest_02", name="Full Chicken", description="Whole flame-grilled PERi-PERi chicken", price=12.00, category="main"),
+            MenuItem(restaurant_id="rest_02", name="Chicken Wrap", description="PERi-PERi chicken wrap with fresh salad", price=5.00, category="main", is_popular=True),
+            MenuItem(restaurant_id="rest_02", name="PERi Chips (Regular)", description="Crispy chips with PERi-PERi salt", price=2.50, category="side"),
+            MenuItem(restaurant_id="rest_02", name="Bottomless Drink", description="Unlimited refills on soft drinks", price=2.00, category="drink"),
+            # Galito's
+            MenuItem(restaurant_id="rest_03", name="Quarter Chicken Meal", description="Quarter chicken with rice or chips", price=4.00, category="main", is_popular=True),
+            MenuItem(restaurant_id="rest_03", name="Chicken Wrap", description="Flame-grilled chicken wrap", price=3.50, category="main"),
+            MenuItem(restaurant_id="rest_03", name="Wings (6 pcs)", description="Flame-grilled chicken wings", price=4.00, category="main"),
+            # Mambo's Grill
+            MenuItem(restaurant_id="rest_04", name="Sadza & Beef Stew", description="Traditional sadza with rich beef stew and vegetables", price=3.00, category="main", is_popular=True),
+            MenuItem(restaurant_id="rest_04", name="Sadza & Chicken", description="Sadza with grilled or stewed chicken", price=3.50, category="main", is_popular=True),
+            MenuItem(restaurant_id="rest_04", name="T-Bone Steak", description="Braai-grilled T-bone steak with sadza and salad", price=7.00, category="main"),
+            MenuItem(restaurant_id="rest_04", name="Madora & Sadza", description="Traditional mopane worms with sadza", price=4.00, category="main"),
+            MenuItem(restaurant_id="rest_04", name="Mazoe Orange", description="Refreshing Mazoe orange crush", price=0.75, category="drink"),
+            # Spur
+            MenuItem(restaurant_id="rest_05", name="Spur Burger", description="Classic beef burger with all the trimmings", price=6.50, category="main", is_popular=True),
+            MenuItem(restaurant_id="rest_05", name="Pork Ribs (Full)", description="Full rack of slow-basted BBQ pork ribs", price=12.00, category="main"),
+            MenuItem(restaurant_id="rest_05", name="Cheese & Bacon Burger", description="Beef burger with melted cheese and crispy bacon", price=7.50, category="main"),
+            MenuItem(restaurant_id="rest_05", name="Chocolate Brownie", description="Warm chocolate brownie with ice cream", price=3.50, category="dessert"),
+            # Creamy Inn
+            MenuItem(restaurant_id="rest_06", name="Soft Serve (Regular)", description="Creamy vanilla soft serve cone", price=1.00, category="dessert", is_popular=True),
+            MenuItem(restaurant_id="rest_06", name="Chocolate Milkshake", description="Thick chocolate milkshake", price=2.50, category="drink", is_popular=True),
+            MenuItem(restaurant_id="rest_06", name="Sundae", description="Soft serve sundae with your choice of topping", price=2.00, category="dessert"),
+            # Pizza Inn
+            MenuItem(restaurant_id="rest_07", name="Meat Feast Pizza (Medium)", description="Loaded with beef, pepperoni, ham, and sausage", price=7.00, category="main", is_popular=True),
+            MenuItem(restaurant_id="rest_07", name="Margherita Pizza (Medium)", description="Classic tomato and mozzarella", price=5.00, category="main"),
+            MenuItem(restaurant_id="rest_07", name="BBQ Chicken Pizza (Medium)", description="BBQ sauce base with grilled chicken", price=6.50, category="main"),
+            MenuItem(restaurant_id="rest_07", name="Garlic Bread", description="Toasted garlic bread with herb butter", price=2.00, category="side"),
+            # Mimi's Kitchen
+            MenuItem(restaurant_id="rest_08", name="Sadza & Muriwo", description="Sadza with fresh green vegetables", price=2.00, category="main", is_popular=True),
+            MenuItem(restaurant_id="rest_08", name="Sadza, Beef & Muriwo", description="Full plate: sadza, beef stew, and greens", price=3.50, category="main", is_popular=True),
+            MenuItem(restaurant_id="rest_08", name="Rice & Chicken", description="Rice with stewed chicken", price=3.00, category="main"),
+            MenuItem(restaurant_id="rest_08", name="Maputi (Large)", description="Large bag of roasted maize kernels", price=0.50, category="side"),
+            MenuItem(restaurant_id="rest_08", name="Sweet Tea", description="Zimbabwean-style sweet tea", price=0.50, category="drink"),
+        ]
+        db.add_all(menu_items)
+
     db.commit()
 
 
-# Job counter for generating IDs
+# Counters for generating IDs
 _job_counter = 1000
+_order_counter = 5000
 
 
-# CRUD Operations
+# ==================== USER DB Operations (for auth persistence) ====================
+
+def db_create_user(user_id: str, phone: str, name: str, password_hash: str,
+                   user_type: str = "rider") -> dict:
+    """Create a new user in the database."""
+    with get_db() as db:
+        user = User(
+            id=user_id, phone=phone, name=name,
+            password_hash=password_hash, user_type=user_type,
+        )
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+        return _user_to_dict(user)
+
+
+def db_get_user_by_id(user_id: str) -> Optional[dict]:
+    """Get user by ID from the database."""
+    with get_db() as db:
+        user = db.query(User).filter(User.id == user_id).first()
+        return _user_to_dict(user) if user else None
+
+
+def db_get_user_by_phone(phone: str) -> Optional[dict]:
+    """Get user by phone number from the database."""
+    with get_db() as db:
+        user = db.query(User).filter(User.phone == phone).first()
+        return _user_to_dict(user) if user else None
+
+
+def db_list_users(limit: int = 100) -> List[dict]:
+    """List all users."""
+    with get_db() as db:
+        users = db.query(User).order_by(User.created_at.desc()).limit(limit).all()
+        return [_user_to_dict(u) for u in users]
+
+
+def db_update_user(user_id: str, **updates) -> Optional[dict]:
+    """Update user fields."""
+    with get_db() as db:
+        user = db.query(User).filter(User.id == user_id).first()
+        if not user:
+            return None
+        for key, value in updates.items():
+            if hasattr(user, key):
+                setattr(user, key, value)
+        user.updated_at = datetime.utcnow()
+        db.commit()
+        db.refresh(user)
+        return _user_to_dict(user)
+
+
+def db_get_user_count() -> int:
+    """Get total user count."""
+    with get_db() as db:
+        return db.query(User).count()
+
+
+def _user_to_dict(user: User) -> dict:
+    """Convert User model to dictionary."""
+    return {
+        "id": user.id,
+        "phone": user.phone,
+        "name": user.name,
+        "email": user.email,
+        "password_hash": user.password_hash,
+        "user_type": user.user_type,
+        "is_verified": user.is_verified,
+        "is_active": user.is_active,
+        "wallet_balance": user.wallet_balance,
+        "referral_code": user.referral_code,
+        "created_at": user.created_at.isoformat() if user.created_at else None,
+    }
+
+
+# ==================== JOB CRUD Operations ====================
+
 def create_job(data: dict) -> dict:
     """Create a new job."""
     global _job_counter
@@ -446,8 +723,8 @@ def add_rating(data: dict) -> dict:
         # Update driver average rating
         driver = db.query(Driver).filter(Driver.id == data.get("driver_id")).first()
         if driver:
-            avg = db.query(Rating).filter(Rating.driver_id == driver.id).with_entities(
-                db.func.avg(Rating.rating)
+            avg = db.query(func.avg(Rating.rating)).filter(
+                Rating.driver_id == driver.id
             ).scalar()
             if avg:
                 driver.rating = round(avg, 2)
@@ -668,20 +945,20 @@ def get_driver_earnings(driver_id: str, days: int = 30) -> dict:
         ).order_by(DriverEarning.created_at.desc()).limit(50).all()
         
         total = db.query(
-            db.func.count(DriverEarning.id),
-            db.func.sum(DriverEarning.amount),
-            db.func.sum(DriverEarning.commission),
-            db.func.sum(DriverEarning.net_amount),
-            db.func.avg(DriverEarning.net_amount),
+            func.count(DriverEarning.id),
+            func.sum(DriverEarning.amount),
+            func.sum(DriverEarning.commission),
+            func.sum(DriverEarning.net_amount),
+            func.avg(DriverEarning.net_amount),
         ).filter(DriverEarning.driver_id == driver_id).first()
-        
+
         today = datetime.utcnow().strftime("%Y-%m-%d")
         today_stats = db.query(
-            db.func.count(DriverEarning.id),
-            db.func.sum(DriverEarning.net_amount),
+            func.count(DriverEarning.id),
+            func.sum(DriverEarning.net_amount),
         ).filter(
             DriverEarning.driver_id == driver_id,
-            db.func.date(DriverEarning.created_at) == today,
+            func.date(DriverEarning.created_at) == today,
         ).first()
         
         return {
@@ -713,14 +990,14 @@ def get_all_drivers_earnings() -> List[dict]:
     """Get earnings leaderboard."""
     with get_db() as db:
         drivers = db.query(Driver).filter(Driver.is_active == True).all()
-        
+
         result = []
         for d in drivers:
             stats = db.query(
-                db.func.count(DriverEarning.id),
-                db.func.sum(DriverEarning.net_amount),
+                func.count(DriverEarning.id),
+                func.sum(DriverEarning.net_amount),
             ).filter(DriverEarning.driver_id == d.id).first()
-            
+
             result.append({
                 "id": d.id,
                 "name": d.name,
@@ -728,8 +1005,313 @@ def get_all_drivers_earnings() -> List[dict]:
                 "total_trips": stats[0] or 0,
                 "net_earnings": round(stats[1] or 0, 2),
             })
-        
+
         return sorted(result, key=lambda x: x["net_earnings"], reverse=True)
+
+
+# ==================== RESTAURANT CRUD ====================
+
+def list_restaurants(category: Optional[str] = None, area: Optional[str] = None,
+                     featured_only: bool = False, limit: int = 50) -> List[dict]:
+    """List restaurants with optional filters."""
+    with get_db() as db:
+        q = db.query(Restaurant).filter(Restaurant.is_active == True)
+        if category:
+            q = q.filter(Restaurant.category == category)
+        if area:
+            q = q.filter(Restaurant.area.ilike(f"%{area}%"))
+        if featured_only:
+            q = q.filter(Restaurant.is_featured == True)
+        restaurants = q.order_by(Restaurant.rating.desc()).limit(limit).all()
+        return [_restaurant_to_dict(r) for r in restaurants]
+
+
+def get_restaurant(restaurant_id: str) -> Optional[dict]:
+    """Get restaurant by ID."""
+    with get_db() as db:
+        r = db.query(Restaurant).filter(Restaurant.id == restaurant_id).first()
+        return _restaurant_to_dict(r) if r else None
+
+
+def search_restaurants(query: str, limit: int = 20) -> List[dict]:
+    """Search restaurants by name, cuisine, or area."""
+    with get_db() as db:
+        restaurants = db.query(Restaurant).filter(
+            Restaurant.is_active == True,
+            (Restaurant.name.ilike(f"%{query}%")) |
+            (Restaurant.cuisine.ilike(f"%{query}%")) |
+            (Restaurant.area.ilike(f"%{query}%"))
+        ).order_by(Restaurant.rating.desc()).limit(limit).all()
+        return [_restaurant_to_dict(r) for r in restaurants]
+
+
+def _restaurant_to_dict(r: Restaurant) -> dict:
+    return {
+        "id": r.id,
+        "name": r.name,
+        "description": r.description,
+        "address": r.address,
+        "area": r.area,
+        "lat": r.lat,
+        "lng": r.lng,
+        "phone": r.phone,
+        "image_url": r.image_url,
+        "category": r.category,
+        "cuisine": r.cuisine,
+        "rating": r.rating,
+        "total_orders": r.total_orders,
+        "delivery_fee": r.delivery_fee,
+        "min_order": r.min_order,
+        "avg_prep_time_min": r.avg_prep_time_min,
+        "opening_time": r.opening_time,
+        "closing_time": r.closing_time,
+        "is_open": r.is_open,
+        "is_featured": r.is_featured,
+    }
+
+
+# ==================== MENU ITEM CRUD ====================
+
+def get_menu(restaurant_id: str, category: Optional[str] = None) -> List[dict]:
+    """Get menu items for a restaurant."""
+    with get_db() as db:
+        q = db.query(MenuItem).filter(
+            MenuItem.restaurant_id == restaurant_id,
+            MenuItem.is_available == True,
+        )
+        if category:
+            q = q.filter(MenuItem.category == category)
+        items = q.order_by(MenuItem.is_popular.desc(), MenuItem.name).all()
+        return [_menu_item_to_dict(i) for i in items]
+
+
+def get_menu_item(item_id: int) -> Optional[dict]:
+    """Get a single menu item."""
+    with get_db() as db:
+        item = db.query(MenuItem).filter(MenuItem.id == item_id).first()
+        return _menu_item_to_dict(item) if item else None
+
+
+def _menu_item_to_dict(i: MenuItem) -> dict:
+    return {
+        "id": i.id,
+        "restaurant_id": i.restaurant_id,
+        "name": i.name,
+        "description": i.description,
+        "price": i.price,
+        "image_url": i.image_url,
+        "category": i.category,
+        "is_available": i.is_available,
+        "is_popular": i.is_popular,
+    }
+
+
+# ==================== FOOD ORDER CRUD ====================
+
+def create_food_order(data: dict) -> dict:
+    """Create a new food order."""
+    global _order_counter
+    _order_counter += 1
+    order_id = f"FO{_order_counter}"
+
+    with get_db() as db:
+        order = FoodOrder(
+            id=order_id,
+            rider_id=data.get("rider_id"),
+            restaurant_id=data["restaurant_id"],
+            status="placed",
+            items_json=json.dumps(data["items"]),
+            subtotal=data["subtotal"],
+            delivery_fee=data.get("delivery_fee", 1.00),
+            discount=data.get("discount", 0.0),
+            total=data["total"],
+            delivery_address=data.get("delivery_address"),
+            delivery_lat=data.get("delivery_lat"),
+            delivery_lng=data.get("delivery_lng"),
+            payment_method=data.get("payment_method", "cash"),
+            rider_name=data.get("rider_name"),
+            rider_phone=data.get("rider_phone"),
+            special_instructions=data.get("special_instructions"),
+            estimated_delivery_min=data.get("estimated_delivery_min"),
+        )
+        db.add(order)
+
+        # Increment restaurant order count
+        restaurant = db.query(Restaurant).filter(Restaurant.id == data["restaurant_id"]).first()
+        if restaurant:
+            restaurant.total_orders = (restaurant.total_orders or 0) + 1
+
+        db.commit()
+        db.refresh(order)
+        return _food_order_to_dict(order)
+
+
+def get_food_order(order_id: str) -> Optional[dict]:
+    """Get food order by ID."""
+    with get_db() as db:
+        order = db.query(FoodOrder).filter(FoodOrder.id == order_id).first()
+        return _food_order_to_dict(order) if order else None
+
+
+def update_food_order(order_id: str, **updates) -> Optional[dict]:
+    """Update a food order."""
+    with get_db() as db:
+        order = db.query(FoodOrder).filter(FoodOrder.id == order_id).first()
+        if not order:
+            return None
+
+        if "driver" in updates:
+            updates["driver_json"] = json.dumps(updates.pop("driver"))
+
+        now = datetime.utcnow()
+        new_status = updates.get("status")
+        if new_status == "confirmed" and not order.confirmed_at:
+            updates["confirmed_at"] = now
+        elif new_status == "picked_up" and not order.picked_up_at:
+            updates["picked_up_at"] = now
+        elif new_status == "delivered" and not order.delivered_at:
+            updates["delivered_at"] = now
+
+        for key, value in updates.items():
+            if hasattr(order, key):
+                setattr(order, key, value)
+
+        order.updated_at = now
+        db.commit()
+        db.refresh(order)
+        return _food_order_to_dict(order)
+
+
+def list_food_orders(rider_id: Optional[str] = None, restaurant_id: Optional[str] = None,
+                     status: Optional[str] = None, limit: int = 50) -> List[dict]:
+    """List food orders with optional filters."""
+    with get_db() as db:
+        q = db.query(FoodOrder)
+        if rider_id:
+            q = q.filter(FoodOrder.rider_id == rider_id)
+        if restaurant_id:
+            q = q.filter(FoodOrder.restaurant_id == restaurant_id)
+        if status:
+            q = q.filter(FoodOrder.status == status)
+        orders = q.order_by(FoodOrder.created_at.desc()).limit(limit).all()
+        return [_food_order_to_dict(o) for o in orders]
+
+
+def _food_order_to_dict(o: FoodOrder) -> dict:
+    result = {
+        "id": o.id,
+        "rider_id": o.rider_id,
+        "restaurant_id": o.restaurant_id,
+        "driver_id": o.driver_id,
+        "status": o.status,
+        "items": json.loads(o.items_json) if o.items_json else [],
+        "subtotal": o.subtotal,
+        "delivery_fee": o.delivery_fee,
+        "discount": o.discount,
+        "total": o.total,
+        "delivery_address": o.delivery_address,
+        "delivery_lat": o.delivery_lat,
+        "delivery_lng": o.delivery_lng,
+        "payment_method": o.payment_method,
+        "payment_status": o.payment_status,
+        "rider_name": o.rider_name,
+        "rider_phone": o.rider_phone,
+        "special_instructions": o.special_instructions,
+        "estimated_delivery_min": o.estimated_delivery_min,
+        "cancel_reason": o.cancel_reason,
+        "created_at": o.created_at.isoformat() if o.created_at else None,
+        "confirmed_at": o.confirmed_at.isoformat() if o.confirmed_at else None,
+        "picked_up_at": o.picked_up_at.isoformat() if o.picked_up_at else None,
+        "delivered_at": o.delivered_at.isoformat() if o.delivered_at else None,
+    }
+    if o.driver_json:
+        result["driver"] = json.loads(o.driver_json)
+    else:
+        result["driver"] = None
+    return result
+
+
+# ==================== WALLET CRUD ====================
+
+def get_wallet_balance(user_id: str) -> float:
+    """Get user wallet balance."""
+    with get_db() as db:
+        user = db.query(User).filter(User.id == user_id).first()
+        return user.wallet_balance if user else 0.0
+
+
+def wallet_top_up(user_id: str, amount: float, description: str = "Wallet top-up") -> dict:
+    """Add money to wallet."""
+    with get_db() as db:
+        user = db.query(User).filter(User.id == user_id).first()
+        if not user:
+            return {"ok": False, "message": "User not found"}
+
+        user.wallet_balance = (user.wallet_balance or 0) + amount
+        txn = WalletTransaction(
+            user_id=user_id, type="top_up", amount=amount,
+            balance_after=user.wallet_balance, description=description,
+        )
+        db.add(txn)
+        db.commit()
+        return {"ok": True, "balance": user.wallet_balance, "transaction_id": txn.id}
+
+
+def wallet_deduct(user_id: str, amount: float, txn_type: str = "ride_payment",
+                  reference_id: str = None, description: str = "Payment") -> dict:
+    """Deduct money from wallet."""
+    with get_db() as db:
+        user = db.query(User).filter(User.id == user_id).first()
+        if not user:
+            return {"ok": False, "message": "User not found"}
+        if (user.wallet_balance or 0) < amount:
+            return {"ok": False, "message": "Insufficient balance"}
+
+        user.wallet_balance -= amount
+        txn = WalletTransaction(
+            user_id=user_id, type=txn_type, amount=-amount,
+            balance_after=user.wallet_balance, reference_id=reference_id,
+            description=description,
+        )
+        db.add(txn)
+        db.commit()
+        return {"ok": True, "balance": user.wallet_balance, "transaction_id": txn.id}
+
+
+def wallet_credit(user_id: str, amount: float, txn_type: str = "referral_credit",
+                  reference_id: str = None, description: str = "Credit") -> dict:
+    """Credit money to wallet (refunds, referral bonuses, etc.)."""
+    with get_db() as db:
+        user = db.query(User).filter(User.id == user_id).first()
+        if not user:
+            return {"ok": False, "message": "User not found"}
+
+        user.wallet_balance = (user.wallet_balance or 0) + amount
+        txn = WalletTransaction(
+            user_id=user_id, type=txn_type, amount=amount,
+            balance_after=user.wallet_balance, reference_id=reference_id,
+            description=description,
+        )
+        db.add(txn)
+        db.commit()
+        return {"ok": True, "balance": user.wallet_balance, "transaction_id": txn.id}
+
+
+def get_wallet_transactions(user_id: str, limit: int = 50) -> List[dict]:
+    """Get wallet transaction history."""
+    with get_db() as db:
+        txns = db.query(WalletTransaction).filter(
+            WalletTransaction.user_id == user_id
+        ).order_by(WalletTransaction.created_at.desc()).limit(limit).all()
+        return [{
+            "id": t.id,
+            "type": t.type,
+            "amount": t.amount,
+            "balance_after": t.balance_after,
+            "reference_id": t.reference_id,
+            "description": t.description,
+            "created_at": t.created_at.isoformat() if t.created_at else None,
+        } for t in txns]
 
 
 # Initialize on import

@@ -17,6 +17,13 @@ import 'screens/schedule_ride_screen.dart';
 import 'screens/referrals_screen.dart';
 import 'screens/driver_earnings_screen.dart';
 import 'screens/chat_screen.dart';
+import 'screens/restaurants_screen.dart';
+import 'screens/restaurant_detail_screen.dart';
+import 'screens/cart_screen.dart';
+import 'screens/food_order_tracking_screen.dart';
+import 'screens/restaurant_detail_screen.dart';
+import 'screens/cart_screen.dart';
+import 'screens/food_order_tracking_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -232,6 +239,10 @@ class FambaApp extends StatelessWidget {
         '/referrals': (_) => const ReferralsScreen(),
         '/driver-earnings': (_) => const DriverEarningsScreen(),
         '/chat': (_) => const ChatScreen(),
+        '/restaurants': (_) => const RestaurantsScreen(),
+        '/restaurant-detail': (_) => const RestaurantDetailScreen(),
+        '/cart': (_) => const CartScreen(),
+        '/food-order-tracking': (_) => const FoodOrderTrackingScreen(),
       },
     );
   }

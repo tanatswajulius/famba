@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
+import 'package:provider/provider.dart';
 import '../main.dart';
 import '../widgets/location_search.dart';
 import '../core/api.dart';
+import '../core/app_state.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -11,6 +13,7 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateMixin {
+  int _bottomNavIndex = 0; // 0 = Rides, 1 = Food, 2 = Wallet, 3 = Profile
   final _pickup = TextEditingController(text: "UZ Campus Gate");
   final _drop = TextEditingController(text: "First Street Mall");
   final _pickupFocus = FocusNode();
@@ -154,12 +157,61 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
   Widget build(BuildContext context) {
     return Scaffold(
       body: SafeArea(
-        child: FadeTransition(
-          opacity: _fadeIn,
-          child: CustomScrollView(
-            slivers: [
-              // App Bar
-              SliverToBoxAdapter(
+        child: _bottomNavIndex == 0 ? _buildRidesTab() : _buildPlaceholderNav(),
+      ),
+      bottomNavigationBar: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 16, offset: const Offset(0, -4))],
+        ),
+        child: BottomNavigationBar(
+          currentIndex: _bottomNavIndex,
+          onTap: (i) {
+            if (i == 1) { Navigator.pushNamed(context, '/restaurants'); return; }
+            if (i == 2) { Navigator.pushNamed(context, '/wallet'); return; }
+            if (i == 3) { Navigator.pushNamed(context, '/profile'); return; }
+            setState(() => _bottomNavIndex = i);
+          },
+          type: BottomNavigationBarType.fixed,
+          backgroundColor: Colors.white,
+          selectedItemColor: FambaColors.primary,
+          unselectedItemColor: FambaColors.textSecondary,
+          selectedFontSize: 12,
+          unselectedFontSize: 12,
+          elevation: 0,
+          items: [
+            const BottomNavigationBarItem(icon: Icon(Icons.motorcycle_rounded), label: 'Rides'),
+            BottomNavigationBarItem(
+              icon: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  const Icon(Icons.restaurant_rounded),
+                  if (context.watch<AppState>().cartCount > 0)
+                    Positioned(right: -6, top: -4, child: Container(
+                      padding: const EdgeInsets.all(4), decoration: const BoxDecoration(color: FambaColors.error, shape: BoxShape.circle),
+                      child: Text('${context.watch<AppState>().cartCount}', style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w700)),
+                    )),
+                ],
+              ),
+              label: 'Food',
+            ),
+            const BottomNavigationBarItem(icon: Icon(Icons.account_balance_wallet_rounded), label: 'Wallet'),
+            const BottomNavigationBarItem(icon: Icon(Icons.person_rounded), label: 'Profile'),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPlaceholderNav() => const SizedBox();
+
+  Widget _buildRidesTab() {
+    return FadeTransition(
+      opacity: _fadeIn,
+      child: CustomScrollView(
+        slivers: [
+          // App Bar
+          SliverToBoxAdapter(
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
                   child: Row(
@@ -576,9 +628,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
               ),
             ],
           ),
-        ),
-      ),
-    );
+        );
   }
 
   String _getGreeting() {

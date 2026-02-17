@@ -6,6 +6,7 @@ import 'screens/login_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/ride_request_screen.dart';
 import 'screens/navigation_screen.dart';
+import 'screens/delivery_navigation_screen.dart';
 import 'screens/earnings_screen.dart';
 import 'screens/profile_screen.dart';
 
@@ -98,6 +99,7 @@ class FambaDriverApp extends StatelessWidget {
         '/home': (_) => const DriverHomeScreen(),
         '/ride-request': (_) => const RideRequestScreen(),
         '/navigation': (_) => const NavigationScreen(),
+        '/delivery-navigation': (_) => const DeliveryNavigationScreen(),
         '/earnings': (_) => const EarningsScreen(),
         '/profile': (_) => const DriverProfileScreen(),
       },

@@ -5,9 +5,9 @@ fastapi==0.111.0
 uvicorn[standard]==0.30.0
 
 # Database
-sqlalchemy==2.0.30
-psycopg2-binary==2.9.9  # PostgreSQL adapter
-alembic==1.13.1  # Database migrations
+sqlalchemy>=2.0.36  # Updated for Python 3.13 compatibility
+# psycopg2-binary==2.9.9  # PostgreSQL adapter (optional, not needed for SQLite)
+alembic>=1.13.1  # Database migrations
 
 # Authentication
 python-jose[cryptography]==3.3.0  # JWT
