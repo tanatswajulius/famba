@@ -279,6 +279,41 @@ class WalletTransaction(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
+# ==================== DISPUTE Model ====================
+
+class Dispute(Base):
+    __tablename__ = "disputes"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(String(50), ForeignKey("users.id"), nullable=True)
+    job_id = Column(String(50), ForeignKey("jobs.id"), nullable=True)
+    order_id = Column(String(50), ForeignKey("food_orders.id"), nullable=True)
+    type = Column(String(30), nullable=False)  # wrong_item, late_delivery, driver_issue, payment, other
+    description = Column(Text, nullable=False)
+    status = Column(String(20), default="open")  # open, investigating, resolved, rejected
+    resolution = Column(Text, nullable=True)
+    refund_amount = Column(Float, default=0.0)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    resolved_at = Column(DateTime, nullable=True)
+
+
+# ==================== DRIVER DOCUMENT Model ====================
+
+class DriverDocument(Base):
+    __tablename__ = "driver_documents"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    driver_id = Column(String(50), ForeignKey("drivers.id"), nullable=False)
+    doc_type = Column(String(30), nullable=False)  # national_id, drivers_license, vehicle_registration, insurance
+    doc_number = Column(String(100), nullable=True)
+    file_url = Column(String(255), nullable=True)
+    status = Column(String(20), default="pending")  # pending, approved, rejected
+    rejection_reason = Column(String(255), nullable=True)
+    submitted_at = Column(DateTime, default=datetime.utcnow)
+    reviewed_at = Column(DateTime, nullable=True)
+    reviewed_by = Column(String(50), nullable=True)
+
+
 # ==================== FOOD RATING Model ====================
 
 class FoodOrderRating(Base):
@@ -1535,6 +1570,152 @@ def get_user_history(user_name: str = None, limit: int = 50) -> List[dict]:
     # Sort by date, newest first
     results.sort(key=lambda x: x.get("created_at") or "", reverse=True)
     return results[:limit]
+
+
+# ==================== DISPUTE CRUD ====================
+
+def create_dispute(data: dict) -> dict:
+    """Create a new dispute."""
+    with get_db() as db:
+        dispute = Dispute(
+            user_id=data.get("user_id"),
+            job_id=data.get("job_id"),
+            order_id=data.get("order_id"),
+            type=data["type"],
+            description=data["description"],
+        )
+        db.add(dispute)
+        db.commit()
+        db.refresh(dispute)
+        return _dispute_to_dict(dispute)
+
+
+def get_dispute(dispute_id: int) -> Optional[dict]:
+    with get_db() as db:
+        d = db.query(Dispute).filter(Dispute.id == dispute_id).first()
+        return _dispute_to_dict(d) if d else None
+
+
+def list_disputes(status: str = None, limit: int = 50) -> List[dict]:
+    with get_db() as db:
+        q = db.query(Dispute)
+        if status:
+            q = q.filter(Dispute.status == status)
+        disputes = q.order_by(Dispute.created_at.desc()).limit(limit).all()
+        return [_dispute_to_dict(d) for d in disputes]
+
+
+def resolve_dispute(dispute_id: int, resolution: str, refund_amount: float = 0,
+                    status: str = "resolved") -> Optional[dict]:
+    with get_db() as db:
+        d = db.query(Dispute).filter(Dispute.id == dispute_id).first()
+        if not d:
+            return None
+        d.status = status
+        d.resolution = resolution
+        d.refund_amount = refund_amount
+        d.resolved_at = datetime.utcnow()
+        db.commit()
+        db.refresh(d)
+        return _dispute_to_dict(d)
+
+
+def _dispute_to_dict(d: Dispute) -> dict:
+    return {
+        "id": d.id, "user_id": d.user_id, "job_id": d.job_id,
+        "order_id": d.order_id, "type": d.type,
+        "description": d.description, "status": d.status,
+        "resolution": d.resolution, "refund_amount": d.refund_amount,
+        "created_at": d.created_at.isoformat() if d.created_at else None,
+        "resolved_at": d.resolved_at.isoformat() if d.resolved_at else None,
+    }
+
+
+# ==================== DRIVER DOCUMENT CRUD ====================
+
+def submit_driver_document(data: dict) -> dict:
+    """Submit a driver document for verification."""
+    with get_db() as db:
+        doc = DriverDocument(
+            driver_id=data["driver_id"],
+            doc_type=data["doc_type"],
+            doc_number=data.get("doc_number"),
+            file_url=data.get("file_url"),
+        )
+        db.add(doc)
+        db.commit()
+        db.refresh(doc)
+        return _doc_to_dict(doc)
+
+
+def get_driver_documents(driver_id: str) -> List[dict]:
+    with get_db() as db:
+        docs = db.query(DriverDocument).filter(
+            DriverDocument.driver_id == driver_id
+        ).order_by(DriverDocument.submitted_at.desc()).all()
+        return [_doc_to_dict(d) for d in docs]
+
+
+def list_pending_documents(limit: int = 50) -> List[dict]:
+    with get_db() as db:
+        docs = db.query(DriverDocument).filter(
+            DriverDocument.status == "pending"
+        ).order_by(DriverDocument.submitted_at.asc()).limit(limit).all()
+        return [_doc_to_dict(d) for d in docs]
+
+
+def list_all_documents(status: str = None, limit: int = 100) -> List[dict]:
+    with get_db() as db:
+        q = db.query(DriverDocument)
+        if status:
+            q = q.filter(DriverDocument.status == status)
+        docs = q.order_by(DriverDocument.submitted_at.desc()).limit(limit).all()
+        return [_doc_to_dict(d) for d in docs]
+
+
+def review_driver_document(doc_id: int, status: str, reviewed_by: str = None,
+                           rejection_reason: str = None) -> Optional[dict]:
+    with get_db() as db:
+        doc = db.query(DriverDocument).filter(DriverDocument.id == doc_id).first()
+        if not doc:
+            return None
+        doc.status = status
+        doc.reviewed_at = datetime.utcnow()
+        doc.reviewed_by = reviewed_by
+        if rejection_reason:
+            doc.rejection_reason = rejection_reason
+
+        # Auto-verify driver if all required docs are approved
+        if status == "approved":
+            required = {"national_id", "drivers_license"}
+            approved = set(
+                d.doc_type for d in db.query(DriverDocument).filter(
+                    DriverDocument.driver_id == doc.driver_id,
+                    DriverDocument.status == "approved",
+                ).all()
+            )
+            approved.add(doc.doc_type)
+            if required.issubset(approved):
+                driver = db.query(Driver).filter(Driver.id == doc.driver_id).first()
+                if driver:
+                    driver.is_verified = True
+                    driver.documents_verified = True
+
+        db.commit()
+        db.refresh(doc)
+        return _doc_to_dict(doc)
+
+
+def _doc_to_dict(d: DriverDocument) -> dict:
+    return {
+        "id": d.id, "driver_id": d.driver_id,
+        "doc_type": d.doc_type, "doc_number": d.doc_number,
+        "file_url": d.file_url, "status": d.status,
+        "rejection_reason": d.rejection_reason,
+        "submitted_at": d.submitted_at.isoformat() if d.submitted_at else None,
+        "reviewed_at": d.reviewed_at.isoformat() if d.reviewed_at else None,
+        "reviewed_by": d.reviewed_by,
+    }
 
 
 # Initialize on import

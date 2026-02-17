@@ -10,6 +10,7 @@ class AppState extends ChangeNotifier {
   String? activeJobId;
   String? activeOrderId;
   double walletBalance = 0.0;
+  bool isDarkMode = false;
 
   // Cart state for food delivery
   String? cartRestaurantId;
@@ -60,6 +61,12 @@ class AppState extends ChangeNotifier {
 
   void setWalletBalance(double balance) {
     walletBalance = balance;
+    notifyListeners();
+  }
+
+  void toggleDarkMode() {
+    isDarkMode = !isDarkMode;
+    _saveDarkMode();
     notifyListeners();
   }
 
@@ -122,6 +129,11 @@ class AppState extends ChangeNotifier {
     prefs.remove('phone');
   }
 
+  Future<void> _saveDarkMode() async {
+    final prefs = await SharedPreferences.getInstance();
+    prefs.setBool('dark_mode', isDarkMode);
+  }
+
   Future<bool> loadSavedAuth() async {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('access_token');
@@ -134,6 +146,9 @@ class AppState extends ChangeNotifier {
       notifyListeners();
       return true;
     }
+    // Load dark mode preference regardless of auth
+    isDarkMode = prefs.getBool('dark_mode') ?? false;
+    notifyListeners();
     return false;
   }
 }

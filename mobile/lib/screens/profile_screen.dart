@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../core/app_state.dart';
 import '../main.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -175,6 +177,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
               icon: Icons.local_offer_outlined,
               value: _promoNotifications,
               onChanged: (v) => setState(() => _promoNotifications = v),
+            ),
+            const SizedBox(height: 24),
+
+            // Appearance
+            _sectionHeader("Appearance"),
+            const SizedBox(height: 12),
+            _preferenceToggle(
+              title: "Dark mode",
+              subtitle: "Switch to dark theme",
+              icon: Icons.dark_mode_outlined,
+              value: context.watch<AppState>().isDarkMode,
+              onChanged: (_) => context.read<AppState>().toggleDarkMode(),
             ),
             const SizedBox(height: 24),
 

@@ -58,9 +58,18 @@ class FambaApp extends StatelessWidget {
   const FambaApp({super.key});
   @override
   Widget build(BuildContext context) {
+    final isDark = context.watch<AppState>().isDarkMode;
     return MaterialApp(
       title: 'Famba',
       debugShowCheckedModeBanner: false,
+      themeMode: isDark ? ThemeMode.dark : ThemeMode.light,
+      darkTheme: ThemeData(
+        useMaterial3: true,
+        brightness: Brightness.dark,
+        colorSchemeSeed: FambaColors.primary,
+        scaffoldBackgroundColor: const Color(0xFF0f1117),
+        fontFamily: 'SF Pro Display',
+      ),
       theme: ThemeData(
         useMaterial3: true,
         colorSchemeSeed: FambaColors.primary,

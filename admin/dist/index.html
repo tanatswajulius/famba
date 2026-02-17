@@ -6,6 +6,7 @@
     <title>Famba Admin Dashboard</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
     <style>
         :root {
             --primary: #8BD17C;
@@ -21,12 +22,23 @@
             --error: #ef4444;
             --info: #3b82f6;
             --purple: #a855f7;
+            --sidebar-bg: #ffffff;
+        }
+        [data-theme="dark"] {
+            --primary: #8BD17C;
+            --primary-dark: #a3e896;
+            --primary-light: #1a3a14;
+            --bg: #0f1117;
+            --surface: #1a1d27;
+            --text: #e4e6eb;
+            --text-secondary: #9ca3af;
+            --border: #2d3140;
+            --sidebar-bg: #151821;
         }
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+        body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; transition: background 0.3s, color 0.3s; }
 
-        /* Sidebar */
-        .sidebar { position: fixed; left: 0; top: 0; bottom: 0; width: 260px; background: var(--surface); border-right: 1px solid var(--border); padding: 24px; display: flex; flex-direction: column; z-index: 100; overflow-y: auto; }
+        .sidebar { position: fixed; left: 0; top: 0; bottom: 0; width: 260px; background: var(--sidebar-bg); border-right: 1px solid var(--border); padding: 24px; display: flex; flex-direction: column; z-index: 100; overflow-y: auto; transition: background 0.3s; }
         .logo { display: flex; align-items: center; gap: 12px; margin-bottom: 32px; }
         .logo-icon { width: 44px; height: 44px; background: var(--primary); border-radius: 12px; display: flex; align-items: center; justify-content: center; color: white; font-size: 24px; }
         .logo-text { font-size: 24px; font-weight: 700; color: var(--text); }
@@ -38,8 +50,9 @@
         .nav-item i { font-size: 20px; width: 24px; text-align: center; }
         .nav-item .badge { margin-left: auto; background: var(--error); color: white; font-size: 11px; padding: 2px 7px; border-radius: 10px; font-weight: 600; }
         .nav-item.active .badge { background: rgba(255,255,255,0.3); }
+        .theme-toggle { margin-top: auto; padding: 12px 16px; border-radius: 10px; background: var(--bg); cursor: pointer; display: flex; align-items: center; gap: 10px; font-size: 13px; font-weight: 500; color: var(--text-secondary); transition: all 0.2s; }
+        .theme-toggle:hover { color: var(--text); }
 
-        /* Main content */
         .main { margin-left: 260px; padding: 24px 32px; min-height: 100vh; }
         .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
         .header h1 { font-size: 26px; font-weight: 700; }
@@ -51,10 +64,10 @@
         .btn-outline:hover { border-color: var(--primary); color: var(--primary-dark); }
         .btn-sm { padding: 6px 12px; font-size: 12px; border-radius: 8px; }
         .btn-danger { background: var(--error); color: white; }
+        .btn-success { background: var(--success); color: white; }
 
-        /* Stats grid */
         .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px; }
-        .stat-card { background: var(--surface); border-radius: 14px; padding: 20px; border: 1px solid var(--border); }
+        .stat-card { background: var(--surface); border-radius: 14px; padding: 20px; border: 1px solid var(--border); transition: background 0.3s; }
         .stat-card .icon { width: 44px; height: 44px; border-radius: 11px; display: flex; align-items: center; justify-content: center; font-size: 22px; margin-bottom: 14px; }
         .stat-card .icon.green { background: #dcfce7; color: var(--success); }
         .stat-card .icon.blue { background: #dbeafe; color: var(--info); }
@@ -63,9 +76,9 @@
         .stat-card .icon.red { background: #fee2e2; color: var(--error); }
         .stat-card .value { font-size: 28px; font-weight: 700; margin-bottom: 2px; }
         .stat-card .label { color: var(--text-secondary); font-size: 13px; }
+        [data-theme="dark"] .stat-card .icon.green { background: #064e3b; } [data-theme="dark"] .stat-card .icon.blue { background: #1e3a5f; } [data-theme="dark"] .stat-card .icon.orange { background: #78350f; } [data-theme="dark"] .stat-card .icon.purple { background: #3b0764; } [data-theme="dark"] .stat-card .icon.red { background: #7f1d1d; }
 
-        /* Cards & Tables */
-        .card { background: var(--surface); border-radius: 14px; border: 1px solid var(--border); overflow: hidden; margin-bottom: 24px; }
+        .card { background: var(--surface); border-radius: 14px; border: 1px solid var(--border); overflow: hidden; margin-bottom: 24px; transition: background 0.3s; }
         .card-header { padding: 18px 20px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
         .card-header h2 { font-size: 16px; font-weight: 600; }
         .card-body { padding: 20px; }
@@ -75,37 +88,32 @@
         td { font-size: 13px; }
         tr:last-child td { border-bottom: none; }
         .status { padding: 4px 10px; border-radius: 20px; font-size: 11px; font-weight: 600; display: inline-block; }
-        .status.searching, .status.placed { background: #fef3c7; color: #b45309; }
-        .status.driver_assigned, .status.confirmed { background: #dbeafe; color: #1d4ed8; }
+        .status.searching, .status.placed, .status.open, .status.pending { background: #fef3c7; color: #b45309; }
+        .status.driver_assigned, .status.confirmed, .status.investigating { background: #dbeafe; color: #1d4ed8; }
         .status.enroute, .status.preparing, .status.picked_up, .status.delivering { background: #e0e7ff; color: #4338ca; }
         .status.arrived, .status.ready { background: #d1fae5; color: #065f46; }
         .status.riding { background: #dcfce7; color: var(--success); }
-        .status.complete, .status.delivered { background: #dcfce7; color: #166534; }
-        .status.cancelled { background: #fee2e2; color: var(--error); }
-        .status.scheduled { background: #f3e8ff; color: var(--purple); }
-        .status.active { background: #dcfce7; color: var(--success); }
+        .status.complete, .status.delivered, .status.resolved, .status.approved { background: #dcfce7; color: #166534; }
+        .status.cancelled, .status.rejected { background: #fee2e2; color: var(--error); }
+        .status.scheduled, .status.active { background: #dcfce7; color: var(--success); }
         .status.inactive { background: #f3f4f6; color: var(--text-secondary); }
         .avatar { width: 34px; height: 34px; border-radius: 50%; background: var(--primary); color: white; display: inline-flex; align-items: center; justify-content: center; font-weight: 600; font-size: 13px; flex-shrink: 0; }
         .user-cell { display: flex; align-items: center; gap: 10px; }
 
-        /* Grid layouts */
         .grid-2 { display: grid; grid-template-columns: 2fr 1fr; gap: 24px; }
         .grid-2-equal { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
         .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 24px; }
 
-        /* Empty state */
         .empty { text-align: center; padding: 48px 20px; color: var(--text-secondary); }
         .empty i { font-size: 48px; margin-bottom: 12px; display: block; opacity: 0.3; }
         .empty p { font-size: 14px; }
         .loading-row td { text-align: center; padding: 32px; color: var(--text-secondary); font-size: 13px; }
 
-        /* Tabs */
         .tabs { display: flex; gap: 0; border-bottom: 2px solid var(--border); margin-bottom: 24px; }
         .tab { padding: 10px 20px; cursor: pointer; font-weight: 600; font-size: 13px; color: var(--text-secondary); border-bottom: 2px solid transparent; margin-bottom: -2px; transition: all 0.2s; }
         .tab:hover { color: var(--text); }
         .tab.active { color: var(--primary-dark); border-bottom-color: var(--primary); }
 
-        /* Restaurant card */
         .rest-card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 18px; transition: all 0.2s; }
         .rest-card:hover { border-color: var(--primary); }
         .rest-card h3 { font-size: 15px; font-weight: 600; margin-bottom: 4px; }
@@ -114,20 +122,22 @@
         .rest-card .rest-stats span { display: flex; align-items: center; gap: 4px; }
         .rest-badge { display: inline-block; padding: 3px 8px; border-radius: 6px; font-size: 11px; font-weight: 600; background: var(--primary-light); color: var(--primary-dark); }
 
-        /* Settings form */
         .form-group { margin-bottom: 20px; }
         .form-group label { display: block; font-weight: 600; font-size: 13px; margin-bottom: 6px; color: var(--text); }
-        .form-group input, .form-group select { width: 100%; padding: 10px 14px; border: 1px solid var(--border); border-radius: 10px; font-size: 14px; font-family: inherit; }
-        .form-group input:focus, .form-group select:focus { outline: none; border-color: var(--primary); }
+        .form-group input, .form-group select, .form-group textarea { width: 100%; padding: 10px 14px; border: 1px solid var(--border); border-radius: 10px; font-size: 14px; font-family: inherit; background: var(--surface); color: var(--text); }
+        .form-group input:focus, .form-group select:focus, .form-group textarea:focus { outline: none; border-color: var(--primary); }
         .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
 
-        /* Responsive */
+        .chart-container { position: relative; height: 280px; }
+        .surge-badge { display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px; border-radius: 20px; font-weight: 600; font-size: 13px; }
+        .surge-badge.active { background: #fef3c7; color: #b45309; }
+        .surge-badge.normal { background: #dcfce7; color: #166534; }
+
         @media (max-width: 1200px) { .stats-grid { grid-template-columns: repeat(2, 1fr); } .grid-2, .grid-2-equal { grid-template-columns: 1fr; } .grid-3 { grid-template-columns: repeat(2, 1fr); } }
         @media (max-width: 768px) { .sidebar { display: none; } .main { margin-left: 0; padding: 16px; } .stats-grid { grid-template-columns: 1fr; } .grid-3 { grid-template-columns: 1fr; } }
     </style>
 </head>
 <body>
-    <!-- Sidebar -->
     <aside class="sidebar">
         <div class="logo">
             <div class="logo-icon"><i class="ri-motorbike-fill"></i></div>
@@ -150,17 +160,20 @@
             <a class="nav-item" data-page="earnings"><i class="ri-money-dollar-circle-line"></i> Earnings</a>
             <a class="nav-item" data-page="promos"><i class="ri-coupon-line"></i> Promo Codes</a>
 
-            <div class="nav-section">System</div>
-            <a class="nav-item" data-page="support"><i class="ri-customer-service-line"></i> Support</a>
+            <div class="nav-section">Operations</div>
+            <a class="nav-item" data-page="disputes"><i class="ri-shield-line"></i> Disputes</a>
+            <a class="nav-item" data-page="verification"><i class="ri-file-check-line"></i> Verification</a>
+            <a class="nav-item" data-page="surge"><i class="ri-flashlight-line"></i> Surge Pricing</a>
             <a class="nav-item" data-page="settings"><i class="ri-settings-line"></i> Settings</a>
         </nav>
+        <div class="theme-toggle" onclick="toggleTheme()">
+            <i class="ri-moon-line" id="theme-icon"></i> <span id="theme-label">Dark Mode</span>
+        </div>
     </aside>
 
-    <!-- Main Content -->
     <main class="main" id="main-content"></main>
 
     <script>
-    // ==================== API ====================
     const API = 'http://localhost:8000';
     const AUTH = 'Basic ' + btoa('demo:demo123');
 
@@ -177,26 +190,42 @@
         return apiFetch(endpoint, { method: 'POST', body: JSON.stringify(body) });
     }
 
-    // ==================== STATE ====================
     let cachedStats = null;
     const $ = id => document.getElementById(id);
     const main = () => $('main-content');
+
+    // ==================== THEME ====================
+    function toggleTheme() {
+        const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+        document.documentElement.setAttribute('data-theme', isDark ? '' : 'dark');
+        localStorage.setItem('famba-theme', isDark ? 'light' : 'dark');
+        $('theme-icon').className = isDark ? 'ri-moon-line' : 'ri-sun-line';
+        $('theme-label').textContent = isDark ? 'Dark Mode' : 'Light Mode';
+        // Destroy and recreate charts if on dashboard
+        if (document.querySelector('.chart-container canvas')) pageDashboard();
+    }
+    (function initTheme() {
+        const saved = localStorage.getItem('famba-theme');
+        if (saved === 'dark') {
+            document.documentElement.setAttribute('data-theme', 'dark');
+            setTimeout(() => { $('theme-icon').className = 'ri-sun-line'; $('theme-label').textContent = 'Light Mode'; }, 0);
+        }
+    })();
 
     // ==================== ROUTER ====================
     function navigate(page) {
         document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
         const active = document.querySelector(`.nav-item[data-page="${page}"]`);
         if (active) active.classList.add('active');
-        const pages = { dashboard: pageDashboard, rides: pageRides, drivers: pageDrivers, riders: pageRiders, earnings: pageEarnings, promos: pagePromos, restaurants: pageRestaurants, 'food-orders': pageFoodOrders, support: pageSupport, settings: pageSettings };
+        const pages = { dashboard: pageDashboard, rides: pageRides, drivers: pageDrivers, riders: pageRiders, earnings: pageEarnings, promos: pagePromos, restaurants: pageRestaurants, 'food-orders': pageFoodOrders, disputes: pageDisputes, verification: pageVerification, surge: pageSurge, settings: pageSettings };
         (pages[page] || pageDashboard)();
     }
-
     document.querySelectorAll('.nav-item').forEach(item => {
         item.addEventListener('click', () => navigate(item.dataset.page));
     });
 
     // ==================== HELPERS ====================
-    function statusBadge(s) { return `<span class="status ${s}">${s.replace('_', ' ')}</span>`; }
+    function statusBadge(s) { return `<span class="status ${s}">${(s||'').replace('_', ' ')}</span>`; }
     function avatarCell(name, sub) {
         const initial = (name || '?')[0].toUpperCase();
         return `<div class="user-cell"><div class="avatar">${initial}</div><div><div style="font-weight:500">${name || '-'}</div>${sub ? `<small style="color:var(--text-secondary)">${sub}</small>` : ''}</div></div>`;
@@ -210,331 +239,246 @@
         if (diff < 86400) return Math.floor(diff / 3600) + 'h ago';
         return d.toLocaleDateString();
     }
+    function chartColors() {
+        const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+        return { grid: isDark ? '#2d3140' : '#e5e7eb', text: isDark ? '#9ca3af' : '#6b7280' };
+    }
 
     // ==================== DASHBOARD ====================
     async function pageDashboard() {
         main().innerHTML = `
             <div class="header"><h1>Dashboard</h1><div class="header-actions"><button class="btn btn-primary" onclick="pageDashboard()"><i class="ri-refresh-line"></i> Refresh</button></div></div>
-            <div class="stats-grid" id="dash-stats"><div class="stat-card"><div class="loading-row"><td>Loading...</td></div></div></div>
-            <div class="grid-2"><div class="card"><div class="card-header"><h2>Recent Rides</h2><button class="btn btn-outline btn-sm" onclick="navigate('rides')">View All</button></div><table><thead><tr><th>ID</th><th>Rider</th><th>Driver</th><th>Route</th><th>Fare</th><th>Status</th></tr></thead><tbody id="dash-rides"><tr><td colspan="6" class="loading-row">Loading...</td></tr></tbody></table></div>
-            <div class="card"><div class="card-header"><h2>Recent Food Orders</h2><button class="btn btn-outline btn-sm" onclick="navigate('food-orders')">View All</button></div><table><thead><tr><th>Order</th><th>Restaurant</th><th>Total</th><th>Status</th></tr></thead><tbody id="dash-food"><tr><td colspan="4" class="loading-row">Loading...</td></tr></tbody></table></div></div>`;
+            <div class="stats-grid" id="dash-stats"><div class="stat-card"><div style="padding:20px;color:var(--text-secondary)">Loading...</div></div></div>
+            <div class="grid-2-equal">
+                <div class="card"><div class="card-header"><h2>Revenue Trend</h2></div><div class="card-body"><div class="chart-container"><canvas id="chart-revenue"></canvas></div></div></div>
+                <div class="card"><div class="card-header"><h2>Orders by Type</h2></div><div class="card-body"><div class="chart-container"><canvas id="chart-orders"></canvas></div></div></div>
+            </div>
+            <div class="grid-2"><div class="card"><div class="card-header"><h2>Recent Rides</h2><button class="btn btn-outline btn-sm" onclick="navigate('rides')">View All</button></div><table><thead><tr><th>ID</th><th>Rider</th><th>Route</th><th>Fare</th><th>Status</th></tr></thead><tbody id="dash-rides"><tr><td colspan="5" class="loading-row">Loading...</td></tr></tbody></table></div>
+            <div class="card"><div class="card-header"><h2>Recent Food Orders</h2><button class="btn btn-outline btn-sm" onclick="navigate('food-orders')">View All</button></div><table><thead><tr><th>Order</th><th>Total</th><th>Status</th></tr></thead><tbody id="dash-food"><tr><td colspan="3" class="loading-row">Loading...</td></tr></tbody></table></div></div>`;
 
         const stats = await apiFetch('/admin/stats');
         if (!stats) return;
         cachedStats = stats;
+        const surge = await apiFetch('/surge');
 
         $('dash-stats').innerHTML = `
             <div class="stat-card"><div class="icon green"><i class="ri-money-dollar-circle-line"></i></div><div class="value">${money(stats.total_revenue)}</div><div class="label">Total Revenue</div></div>
             <div class="stat-card"><div class="icon blue"><i class="ri-route-line"></i></div><div class="value">${stats.total_rides}</div><div class="label">Rides</div></div>
             <div class="stat-card"><div class="icon orange"><i class="ri-shopping-bag-line"></i></div><div class="value">${stats.total_food_orders}</div><div class="label">Food Orders</div></div>
-            <div class="stat-card"><div class="icon purple"><i class="ri-user-star-line"></i></div><div class="value">${stats.total_drivers}</div><div class="label">Drivers</div></div>`;
+            <div class="stat-card"><div class="icon ${surge?.is_surge ? 'red' : 'purple'}"><i class="ri-flashlight-line"></i></div><div class="value">${surge?.multiplier || '1.0'}x</div><div class="label">${surge?.is_surge ? 'Surge Active' : 'Normal Pricing'}</div></div>`;
 
         const rides = stats.recent_rides || [];
-        $('dash-rides').innerHTML = rides.length === 0 ? '<tr><td colspan="6" class="loading-row">No rides yet</td></tr>' :
-            rides.slice(0, 5).map(j => `<tr><td><strong>${j.id}</strong></td><td>${avatarCell(j.rider_name)}</td><td>${j.driver?.name || '-'}</td><td style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${j.pickup_text || ''} → ${j.drop_text || ''}</td><td>${money(j.fare_usd)}</td><td>${statusBadge(j.status)}</td></tr>`).join('');
+        $('dash-rides').innerHTML = rides.length === 0 ? '<tr><td colspan="5" class="loading-row">No rides yet</td></tr>' :
+            rides.slice(0, 5).map(j => `<tr><td><strong>${j.id}</strong></td><td>${j.rider_name||'-'}</td><td style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${j.pickup_text||''} &rarr; ${j.drop_text||''}</td><td>${money(j.fare_usd)}</td><td>${statusBadge(j.status)}</td></tr>`).join('');
 
         const orders = stats.recent_food_orders || [];
-        $('dash-food').innerHTML = orders.length === 0 ? '<tr><td colspan="4" class="loading-row">No orders yet</td></tr>' :
-            orders.slice(0, 5).map(o => `<tr><td><strong>${o.id}</strong></td><td>${o.restaurant_id}</td><td>${money(o.total)}</td><td>${statusBadge(o.status)}</td></tr>`).join('');
+        $('dash-food').innerHTML = orders.length === 0 ? '<tr><td colspan="3" class="loading-row">No orders yet</td></tr>' :
+            orders.slice(0, 5).map(o => `<tr><td><strong>${o.id}</strong></td><td>${money(o.total)}</td><td>${statusBadge(o.status)}</td></tr>`).join('');
+
+        // Charts
+        const cc = chartColors();
+        const chartOpts = { responsive: true, maintainAspectRatio: false, plugins: { legend: { labels: { color: cc.text } } }, scales: { x: { ticks: { color: cc.text }, grid: { color: cc.grid } }, y: { ticks: { color: cc.text }, grid: { color: cc.grid } } } };
+
+        new Chart($('chart-revenue'), {
+            type: 'bar',
+            data: {
+                labels: ['Rides', 'Food', 'Total'],
+                datasets: [{
+                    label: 'Revenue (USD)',
+                    data: [stats.ride_revenue, stats.food_revenue, stats.total_revenue],
+                    backgroundColor: ['#3b82f6', '#f59e0b', '#8BD17C'],
+                    borderRadius: 8,
+                }]
+            },
+            options: { ...chartOpts, plugins: { ...chartOpts.plugins, legend: { display: false } } }
+        });
+
+        new Chart($('chart-orders'), {
+            type: 'doughnut',
+            data: {
+                labels: ['Rides', 'Food Orders'],
+                datasets: [{
+                    data: [stats.total_rides || 1, stats.total_food_orders || 1],
+                    backgroundColor: ['#3b82f6', '#f59e0b'],
+                    borderWidth: 0,
+                }]
+            },
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { color: cc.text, padding: 16 } } } }
+        });
     }
 
     // ==================== RIDES ====================
     async function pageRides() {
         main().innerHTML = `
             <div class="header"><h1>Rides</h1><div class="header-actions"><button class="btn btn-primary" onclick="pageRides()"><i class="ri-refresh-line"></i> Refresh</button></div></div>
-            <div class="card"><table><thead><tr><th>ID</th><th>Rider</th><th>Driver</th><th>Pickup</th><th>Dropoff</th><th>Distance</th><th>Fare</th><th>Payment</th><th>Status</th><th>Created</th></tr></thead><tbody id="rides-body"><tr><td colspan="10" class="loading-row">Loading...</td></tr></tbody></table></div>`;
+            <div class="card"><table><thead><tr><th>ID</th><th>Rider</th><th>Driver</th><th>Pickup</th><th>Dropoff</th><th>Dist</th><th>Fare</th><th>Payment</th><th>Status</th><th>Created</th></tr></thead><tbody id="rides-body"><tr><td colspan="10" class="loading-row">Loading...</td></tr></tbody></table></div>`;
         const jobs = await apiFetch('/jobs');
-        if (!jobs || !Array.isArray(jobs) || jobs.length === 0) {
-            $('rides-body').innerHTML = '<tr><td colspan="10" class="loading-row">No rides found</td></tr>'; return;
-        }
-        $('rides-body').innerHTML = jobs.map(j => `<tr>
-            <td><strong>${j.id}</strong></td>
-            <td>${avatarCell(j.rider_name)}</td>
-            <td>${j.driver?.name || '-'}</td>
-            <td style="max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${j.pickup_text || '-'}</td>
-            <td style="max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${j.drop_text || '-'}</td>
-            <td>${j.distance_km ? j.distance_km.toFixed(1) + ' km' : '-'}</td>
-            <td><strong>${money(j.fare_usd)}</strong></td>
-            <td>${j.payment_method || 'cash'}</td>
-            <td>${statusBadge(j.status)}</td>
-            <td>${timeAgo(j.created_at)}</td>
-        </tr>`).join('');
+        if (!jobs || !Array.isArray(jobs) || jobs.length === 0) { $('rides-body').innerHTML = '<tr><td colspan="10" class="loading-row">No rides found</td></tr>'; return; }
+        $('rides-body').innerHTML = jobs.map(j => `<tr><td><strong>${j.id}</strong></td><td>${avatarCell(j.rider_name)}</td><td>${j.driver?.name||'-'}</td><td style="max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${j.pickup_text||'-'}</td><td style="max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${j.drop_text||'-'}</td><td>${j.distance_km?j.distance_km.toFixed(1)+' km':'-'}</td><td><strong>${money(j.fare_usd)}</strong></td><td>${j.payment_method||'cash'}</td><td>${statusBadge(j.status)}</td><td>${timeAgo(j.created_at)}</td></tr>`).join('');
     }
 
     // ==================== DRIVERS ====================
     async function pageDrivers() {
-        main().innerHTML = `
-            <div class="header"><h1>Drivers</h1><div class="header-actions"><button class="btn btn-primary" onclick="pageDrivers()"><i class="ri-refresh-line"></i> Refresh</button></div></div>
-            <div class="stats-grid" id="driver-stats"></div>
-            <div class="card"><table><thead><tr><th>Driver</th><th>Vehicle</th><th>Plate</th><th>Rating</th><th>Trips</th><th>Earnings</th><th>Verified</th><th>Status</th></tr></thead><tbody id="drivers-body"><tr><td colspan="8" class="loading-row">Loading...</td></tr></tbody></table></div>`;
-
+        main().innerHTML = `<div class="header"><h1>Drivers</h1><div class="header-actions"><button class="btn btn-primary" onclick="pageDrivers()"><i class="ri-refresh-line"></i> Refresh</button></div></div><div class="stats-grid" id="driver-stats"></div><div class="card"><table><thead><tr><th>Driver</th><th>Vehicle</th><th>Plate</th><th>Rating</th><th>Trips</th><th>Earnings</th><th>Verified</th><th>Status</th></tr></thead><tbody id="drivers-body"><tr><td colspan="8" class="loading-row">Loading...</td></tr></tbody></table></div>`;
         const [driversRes, leaderboard] = await Promise.all([apiFetch('/drivers'), apiFetch('/drivers/earnings/leaderboard')]);
-        const drivers = driversRes?.drivers || [];
-        const earnings = leaderboard?.drivers || [];
-        const earningsMap = {};
-        earnings.forEach(e => earningsMap[e.id] = e);
-
+        const drivers = driversRes?.drivers || []; const earnings = leaderboard?.drivers || []; const earningsMap = {}; earnings.forEach(e => earningsMap[e.id] = e);
         const online = drivers.filter(d => d.is_online).length;
-        $('driver-stats').innerHTML = `
-            <div class="stat-card"><div class="icon green"><i class="ri-user-star-line"></i></div><div class="value">${drivers.length}</div><div class="label">Total Drivers</div></div>
-            <div class="stat-card"><div class="icon blue"><i class="ri-wifi-line"></i></div><div class="value">${online}</div><div class="label">Online Now</div></div>
-            <div class="stat-card"><div class="icon orange"><i class="ri-star-line"></i></div><div class="value">${drivers.length ? (drivers.reduce((s,d)=>s+d.rating,0)/drivers.length).toFixed(1) : '0'}</div><div class="label">Avg Rating</div></div>
-            <div class="stat-card"><div class="icon purple"><i class="ri-money-dollar-circle-line"></i></div><div class="value">${money(earnings.reduce((s,e)=>s+(e.net_earnings||0),0))}</div><div class="label">Total Earnings</div></div>`;
-
-        $('drivers-body').innerHTML = drivers.length === 0 ? '<tr><td colspan="8" class="loading-row">No drivers</td></tr>' :
-            drivers.map(d => {
-                const e = earningsMap[d.id] || {};
-                return `<tr>
-                    <td>${avatarCell(d.name, d.phone || '')}</td>
-                    <td>${d.vehicle_make || ''} ${d.vehicle_model || ''} <span style="color:var(--text-secondary)">${d.vehicle_color || ''}</span></td>
-                    <td><strong>${d.license_plate || '-'}</strong></td>
-                    <td>⭐ ${d.rating}</td>
-                    <td>${e.total_trips || 0}</td>
-                    <td>${money(e.net_earnings)}</td>
-                    <td>${d.is_verified ? '<span class="status active">Verified</span>' : '<span class="status inactive">Pending</span>'}</td>
-                    <td>${d.is_online ? '<span class="status active">Online</span>' : '<span class="status inactive">Offline</span>'}</td>
-                </tr>`;
-            }).join('');
+        $('driver-stats').innerHTML = `<div class="stat-card"><div class="icon green"><i class="ri-user-star-line"></i></div><div class="value">${drivers.length}</div><div class="label">Total Drivers</div></div><div class="stat-card"><div class="icon blue"><i class="ri-wifi-line"></i></div><div class="value">${online}</div><div class="label">Online Now</div></div><div class="stat-card"><div class="icon orange"><i class="ri-star-line"></i></div><div class="value">${drivers.length?(drivers.reduce((s,d)=>s+d.rating,0)/drivers.length).toFixed(1):'0'}</div><div class="label">Avg Rating</div></div><div class="stat-card"><div class="icon purple"><i class="ri-money-dollar-circle-line"></i></div><div class="value">${money(earnings.reduce((s,e)=>s+(e.net_earnings||0),0))}</div><div class="label">Total Earnings</div></div>`;
+        $('drivers-body').innerHTML = drivers.length===0?'<tr><td colspan="8" class="loading-row">No drivers</td></tr>':drivers.map(d=>{const e=earningsMap[d.id]||{};return`<tr><td>${avatarCell(d.name,d.phone||'')}</td><td>${d.vehicle_make||''} ${d.vehicle_model||''} <span style="color:var(--text-secondary)">${d.vehicle_color||''}</span></td><td><strong>${d.license_plate||'-'}</strong></td><td>&#11088; ${d.rating}</td><td>${e.total_trips||0}</td><td>${money(e.net_earnings)}</td><td>${d.is_verified?'<span class="status approved">Verified</span>':'<span class="status pending">Pending</span>'}</td><td>${d.is_online?'<span class="status active">Online</span>':'<span class="status inactive">Offline</span>'}</td></tr>`;}).join('');
     }
 
-    // ==================== USERS (RIDERS) ====================
+    // ==================== USERS ====================
     async function pageRiders() {
-        main().innerHTML = `
-            <div class="header"><h1>Users</h1><div class="header-actions"><button class="btn btn-primary" onclick="pageRiders()"><i class="ri-refresh-line"></i> Refresh</button></div></div>
-            <div class="card"><table><thead><tr><th>User</th><th>Phone</th><th>Type</th><th>Wallet</th><th>Verified</th><th>Joined</th></tr></thead><tbody id="users-body"><tr><td colspan="6" class="loading-row">Loading...</td></tr></tbody></table></div>`;
-        const data = await apiFetch('/admin/users');
-        const users = data?.users || [];
-        $('users-body').innerHTML = users.length === 0 ? '<tr><td colspan="6" class="loading-row">No users registered yet</td></tr>' :
-            users.map(u => `<tr>
-                <td>${avatarCell(u.name, u.email || '')}</td>
-                <td>${u.phone}</td>
-                <td><span class="rest-badge">${u.user_type}</span></td>
-                <td>${money(u.wallet_balance)}</td>
-                <td>${u.is_verified ? '<span class="status active">Yes</span>' : '<span class="status inactive">No</span>'}</td>
-                <td>${timeAgo(u.created_at)}</td>
-            </tr>`).join('');
+        main().innerHTML = `<div class="header"><h1>Users</h1><div class="header-actions"><button class="btn btn-primary" onclick="pageRiders()"><i class="ri-refresh-line"></i> Refresh</button></div></div><div class="card"><table><thead><tr><th>User</th><th>Phone</th><th>Type</th><th>Wallet</th><th>Verified</th><th>Joined</th></tr></thead><tbody id="users-body"><tr><td colspan="6" class="loading-row">Loading...</td></tr></tbody></table></div>`;
+        const data = await apiFetch('/admin/users'); const users = data?.users || [];
+        $('users-body').innerHTML = users.length===0?'<tr><td colspan="6" class="loading-row">No users</td></tr>':users.map(u=>`<tr><td>${avatarCell(u.name,u.email||'')}</td><td>${u.phone}</td><td><span class="rest-badge">${u.user_type}</span></td><td>${money(u.wallet_balance)}</td><td>${u.is_verified?'<span class="status approved">Yes</span>':'<span class="status inactive">No</span>'}</td><td>${timeAgo(u.created_at)}</td></tr>`).join('');
     }
 
     // ==================== EARNINGS ====================
     async function pageEarnings() {
-        main().innerHTML = `
-            <div class="header"><h1>Earnings</h1><div class="header-actions"><button class="btn btn-primary" onclick="pageEarnings()"><i class="ri-refresh-line"></i> Refresh</button></div></div>
-            <div class="stats-grid" id="earn-stats"></div>
-            <div class="grid-2-equal">
-                <div class="card"><div class="card-header"><h2>Revenue Breakdown</h2></div><div class="card-body" id="earn-breakdown"></div></div>
-                <div class="card"><div class="card-header"><h2>Driver Leaderboard</h2></div><table><thead><tr><th>Driver</th><th>Trips</th><th>Net Earnings</th></tr></thead><tbody id="earn-leaders"><tr><td colspan="3" class="loading-row">Loading...</td></tr></tbody></table></div>
-            </div>`;
-
+        main().innerHTML = `<div class="header"><h1>Earnings</h1><div class="header-actions"><button class="btn btn-primary" onclick="pageEarnings()"><i class="ri-refresh-line"></i> Refresh</button></div></div><div class="stats-grid" id="earn-stats"></div><div class="grid-2-equal"><div class="card"><div class="card-header"><h2>Revenue Breakdown</h2></div><div class="card-body"><div class="chart-container"><canvas id="chart-earn"></canvas></div></div></div><div class="card"><div class="card-header"><h2>Driver Leaderboard</h2></div><table><thead><tr><th>Driver</th><th>Trips</th><th>Net</th></tr></thead><tbody id="earn-leaders"><tr><td colspan="3" class="loading-row">Loading...</td></tr></tbody></table></div></div>`;
         const [stats, leaderboard] = await Promise.all([apiFetch('/admin/stats'), apiFetch('/drivers/earnings/leaderboard')]);
         if (!stats) return;
-
-        $('earn-stats').innerHTML = `
-            <div class="stat-card"><div class="icon green"><i class="ri-money-dollar-circle-line"></i></div><div class="value">${money(stats.total_revenue)}</div><div class="label">Total Revenue</div></div>
-            <div class="stat-card"><div class="icon blue"><i class="ri-route-line"></i></div><div class="value">${money(stats.ride_revenue)}</div><div class="label">Ride Revenue</div></div>
-            <div class="stat-card"><div class="icon orange"><i class="ri-restaurant-line"></i></div><div class="value">${money(stats.food_revenue)}</div><div class="label">Food Revenue</div></div>
-            <div class="stat-card"><div class="icon purple"><i class="ri-percent-line"></i></div><div class="value">${stats.total_revenue > 0 ? ((stats.food_revenue / stats.total_revenue) * 100).toFixed(0) : 0}%</div><div class="label">Food Share</div></div>`;
-
-        const rideShare = stats.total_revenue > 0 ? ((stats.ride_revenue / stats.total_revenue) * 100).toFixed(1) : 0;
-        const foodShare = stats.total_revenue > 0 ? ((stats.food_revenue / stats.total_revenue) * 100).toFixed(1) : 0;
-        $('earn-breakdown').innerHTML = `
-            <div style="margin-bottom:16px"><div style="display:flex;justify-content:space-between;margin-bottom:6px;font-size:13px;font-weight:600"><span>Rides</span><span>${money(stats.ride_revenue)} (${rideShare}%)</span></div><div style="height:10px;background:var(--border);border-radius:5px;overflow:hidden"><div style="height:100%;width:${rideShare}%;background:var(--info);border-radius:5px"></div></div></div>
-            <div style="margin-bottom:16px"><div style="display:flex;justify-content:space-between;margin-bottom:6px;font-size:13px;font-weight:600"><span>Food Delivery</span><span>${money(stats.food_revenue)} (${foodShare}%)</span></div><div style="height:10px;background:var(--border);border-radius:5px;overflow:hidden"><div style="height:100%;width:${foodShare}%;background:var(--warning);border-radius:5px"></div></div></div>
-            <div style="border-top:1px solid var(--border);padding-top:16px;margin-top:16px"><div style="display:flex;justify-content:space-between;font-weight:700;font-size:15px"><span>Total</span><span>${money(stats.total_revenue)}</span></div></div>
-            <div style="margin-top:20px;display:grid;grid-template-columns:1fr 1fr;gap:12px">
-                <div style="background:var(--bg);padding:14px;border-radius:10px;text-align:center"><div style="font-size:22px;font-weight:700">${stats.total_rides}</div><div style="font-size:12px;color:var(--text-secondary)">Total Rides</div></div>
-                <div style="background:var(--bg);padding:14px;border-radius:10px;text-align:center"><div style="font-size:22px;font-weight:700">${stats.total_food_orders}</div><div style="font-size:12px;color:var(--text-secondary)">Food Orders</div></div>
-            </div>`;
-
+        $('earn-stats').innerHTML = `<div class="stat-card"><div class="icon green"><i class="ri-money-dollar-circle-line"></i></div><div class="value">${money(stats.total_revenue)}</div><div class="label">Total Revenue</div></div><div class="stat-card"><div class="icon blue"><i class="ri-route-line"></i></div><div class="value">${money(stats.ride_revenue)}</div><div class="label">Ride Revenue</div></div><div class="stat-card"><div class="icon orange"><i class="ri-restaurant-line"></i></div><div class="value">${money(stats.food_revenue)}</div><div class="label">Food Revenue</div></div><div class="stat-card"><div class="icon purple"><i class="ri-percent-line"></i></div><div class="value">${stats.total_revenue>0?((stats.food_revenue/stats.total_revenue)*100).toFixed(0):0}%</div><div class="label">Food Share</div></div>`;
+        const cc = chartColors();
+        new Chart($('chart-earn'), { type: 'bar', data: { labels: ['Rides', 'Food Delivery'], datasets: [{ label: 'Revenue', data: [stats.ride_revenue, stats.food_revenue], backgroundColor: ['#3b82f6', '#f59e0b'], borderRadius: 8 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { ticks: { color: cc.text }, grid: { color: cc.grid } }, y: { ticks: { color: cc.text }, grid: { color: cc.grid } } } } });
         const leaders = leaderboard?.drivers || [];
-        $('earn-leaders').innerHTML = leaders.length === 0 ? '<tr><td colspan="3" class="loading-row">No earnings data</td></tr>' :
-            leaders.map((d, i) => `<tr><td>${avatarCell(d.name, '⭐ ' + d.rating)}</td><td>${d.total_trips}</td><td><strong>${money(d.net_earnings)}</strong></td></tr>`).join('');
+        $('earn-leaders').innerHTML = leaders.length===0?'<tr><td colspan="3" class="loading-row">No data</td></tr>':leaders.map(d=>`<tr><td>${avatarCell(d.name,'&#11088; '+d.rating)}</td><td>${d.total_trips}</td><td><strong>${money(d.net_earnings)}</strong></td></tr>`).join('');
     }
 
-    // ==================== PROMO CODES ====================
+    // ==================== PROMOS ====================
     async function pagePromos() {
-        main().innerHTML = `
-            <div class="header"><h1>Promo Codes</h1><div class="header-actions"><button class="btn btn-primary" onclick="pagePromos()"><i class="ri-refresh-line"></i> Refresh</button></div></div>
-            <div class="card"><div class="card-header"><h2>Active Promos</h2></div><table><thead><tr><th>Code</th><th>Discount</th><th>Max Discount</th><th>Uses</th><th>Status</th><th>Test</th></tr></thead><tbody id="promos-body"><tr><td colspan="6" class="loading-row">Loading...</td></tr></tbody></table></div>
-            <div class="card"><div class="card-header"><h2>Test Promo Code</h2></div><div class="card-body"><div style="display:flex;gap:12px;max-width:400px"><input type="text" id="promo-input" placeholder="Enter code..." style="flex:1;padding:10px 14px;border:1px solid var(--border);border-radius:10px;font-size:14px"><button class="btn btn-primary" onclick="testPromo()">Validate</button></div><div id="promo-result" style="margin-top:12px"></div></div></div>`;
-
-        // We validate known codes to get their info
-        const codes = ['FAMBA50', 'RIDE25', 'FIRST10', 'FOOD20'];
-        const results = await Promise.all(codes.map(c => apiPost('/promo/validate', { code: c })));
-        $('promos-body').innerHTML = results.map((r, i) => `<tr>
-            <td><strong style="font-family:monospace;font-size:14px;letter-spacing:1px">${codes[i]}</strong></td>
-            <td>${r?.valid ? r.discount + '%' : '-'}</td>
-            <td>${r?.valid ? money(r.max_discount) : '-'}</td>
-            <td>-</td>
-            <td>${r?.valid ? '<span class="status active">Active</span>' : '<span class="status cancelled">Expired</span>'}</td>
-            <td><button class="btn btn-outline btn-sm" onclick="document.getElementById('promo-input').value='${codes[i]}';testPromo()">Test</button></td>
-        </tr>`).join('');
+        main().innerHTML = `<div class="header"><h1>Promo Codes</h1></div><div class="card"><div class="card-header"><h2>Active Promos</h2></div><table><thead><tr><th>Code</th><th>Discount</th><th>Max</th><th>Status</th><th>Test</th></tr></thead><tbody id="promos-body"><tr><td colspan="5" class="loading-row">Loading...</td></tr></tbody></table></div><div class="card"><div class="card-header"><h2>Test Promo</h2></div><div class="card-body"><div style="display:flex;gap:12px;max-width:400px"><input type="text" id="promo-input" placeholder="Enter code..." style="flex:1;padding:10px 14px;border:1px solid var(--border);border-radius:10px;font-size:14px;background:var(--surface);color:var(--text)"><button class="btn btn-primary" onclick="testPromo()">Validate</button></div><div id="promo-result" style="margin-top:12px"></div></div></div>`;
+        const codes = ['FAMBA50','RIDE25','FIRST10','FOOD20'];
+        const results = await Promise.all(codes.map(c=>apiPost('/promo/validate',{code:c})));
+        $('promos-body').innerHTML = results.map((r,i)=>`<tr><td><strong style="font-family:monospace;letter-spacing:1px">${codes[i]}</strong></td><td>${r?.valid?r.discount+'%':'-'}</td><td>${r?.valid?money(r.max_discount):'-'}</td><td>${r?.valid?'<span class="status approved">Active</span>':'<span class="status cancelled">Expired</span>'}</td><td><button class="btn btn-outline btn-sm" onclick="document.getElementById('promo-input').value='${codes[i]}';testPromo()">Test</button></td></tr>`).join('');
     }
-
     async function testPromo() {
-        const code = $('promo-input').value.trim();
-        if (!code) return;
+        const code = $('promo-input').value.trim(); if (!code) return;
         const result = await apiPost('/promo/validate', { code });
-        $('promo-result').innerHTML = result?.valid
-            ? `<div style="padding:12px;background:#dcfce7;border-radius:10px;color:#166534;font-weight:500"><i class="ri-check-line"></i> ${result.message}</div>`
-            : `<div style="padding:12px;background:#fee2e2;border-radius:10px;color:var(--error);font-weight:500"><i class="ri-close-line"></i> ${result?.message || 'Invalid code'}</div>`;
+        $('promo-result').innerHTML = result?.valid ? `<div style="padding:12px;background:#dcfce7;border-radius:10px;color:#166534;font-weight:500"><i class="ri-check-line"></i> ${result.message}</div>` : `<div style="padding:12px;background:#fee2e2;border-radius:10px;color:var(--error);font-weight:500"><i class="ri-close-line"></i> ${result?.message||'Invalid'}</div>`;
     }
 
     // ==================== RESTAURANTS ====================
     async function pageRestaurants() {
-        main().innerHTML = `
-            <div class="header"><h1>Restaurants</h1><div class="header-actions"><button class="btn btn-primary" onclick="pageRestaurants()"><i class="ri-refresh-line"></i> Refresh</button></div></div>
-            <div class="tabs"><div class="tab active" onclick="filterRest('all',this)">All</div><div class="tab" onclick="filterRest('fast_food',this)">Fast Food</div><div class="tab" onclick="filterRest('restaurant',this)">Restaurants</div><div class="tab" onclick="filterRest('cafe',this)">Cafes</div></div>
-            <div class="grid-3" id="rest-grid"><div class="rest-card"><div class="loading-row"><td>Loading...</td></div></div></div>`;
-        const data = await apiFetch('/restaurants');
-        window._allRestaurants = data?.restaurants || [];
-        renderRestaurants(window._allRestaurants);
+        main().innerHTML = `<div class="header"><h1>Restaurants</h1><div class="header-actions"><button class="btn btn-primary" onclick="pageRestaurants()"><i class="ri-refresh-line"></i> Refresh</button></div></div><div class="tabs"><div class="tab active" onclick="filterRest('all',this)">All</div><div class="tab" onclick="filterRest('fast_food',this)">Fast Food</div><div class="tab" onclick="filterRest('restaurant',this)">Restaurants</div><div class="tab" onclick="filterRest('cafe',this)">Cafes</div></div><div class="grid-3" id="rest-grid"></div>`;
+        const data = await apiFetch('/restaurants'); window._allRestaurants = data?.restaurants || []; renderRestaurants(window._allRestaurants);
     }
-
     function renderRestaurants(list) {
-        $('rest-grid').innerHTML = list.length === 0 ? '<div class="empty"><i class="ri-store-2-line"></i><p>No restaurants found</p></div>' :
-            list.map(r => `<div class="rest-card">
-                <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:8px">
-                    <div><h3>${r.name}</h3><div class="meta">${r.cuisine || r.category}</div></div>
-                    <div>${r.is_featured ? '<span class="rest-badge">Featured</span>' : ''}</div>
-                </div>
-                <div class="meta" style="margin-bottom:10px">${r.address}, ${r.area}</div>
-                <div class="rest-stats">
-                    <span>⭐ ${r.rating}</span>
-                    <span><i class="ri-shopping-bag-line"></i> ${r.total_orders} orders</span>
-                    <span><i class="ri-truck-line"></i> ${money(r.delivery_fee)}</span>
-                    <span><i class="ri-time-line"></i> ${r.avg_prep_time_min}min</span>
-                </div>
-                <div style="margin-top:10px;display:flex;justify-content:space-between;align-items:center">
-                    <span>${r.is_open ? '<span class="status active">Open</span>' : '<span class="status cancelled">Closed</span>'}</span>
-                    <button class="btn btn-outline btn-sm" onclick="viewRestMenu('${r.id}')">View Menu</button>
-                </div>
-            </div>`).join('');
+        $('rest-grid').innerHTML = list.length===0?'<div class="empty"><i class="ri-store-2-line"></i><p>No restaurants</p></div>':list.map(r=>`<div class="rest-card"><div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:8px"><div><h3>${r.name}</h3><div class="meta">${r.cuisine||r.category}</div></div>${r.is_featured?'<span class="rest-badge">Featured</span>':''}</div><div class="meta" style="margin-bottom:10px">${r.address}, ${r.area}</div><div class="rest-stats"><span>&#11088; ${r.rating}</span><span><i class="ri-shopping-bag-line"></i> ${r.total_orders}</span><span><i class="ri-truck-line"></i> ${money(r.delivery_fee)}</span><span><i class="ri-time-line"></i> ${r.avg_prep_time_min}min</span></div><div style="margin-top:10px;display:flex;justify-content:space-between"><span>${r.is_open?'<span class="status active">Open</span>':'<span class="status cancelled">Closed</span>'}</span><button class="btn btn-outline btn-sm" onclick="viewRestMenu('${r.id}')">Menu</button></div></div>`).join('');
     }
-
-    function filterRest(cat, el) {
-        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-        el.classList.add('active');
-        if (cat === 'all') renderRestaurants(window._allRestaurants);
-        else renderRestaurants(window._allRestaurants.filter(r => r.category === cat));
-    }
-
+    function filterRest(cat,el) { document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active')); el.classList.add('active'); if(cat==='all')renderRestaurants(window._allRestaurants);else renderRestaurants(window._allRestaurants.filter(r=>r.category===cat)); }
     async function viewRestMenu(id) {
-        const data = await apiFetch(`/restaurants/${id}`);
-        if (!data) return;
-        const menu = data.menu || [];
-        const cats = [...new Set(menu.map(i => i.category))];
-
-        main().innerHTML = `
-            <div class="header"><h1>${data.name}</h1><div class="header-actions"><button class="btn btn-outline" onclick="pageRestaurants()"><i class="ri-arrow-left-line"></i> Back</button></div></div>
-            <div class="stats-grid">
-                <div class="stat-card"><div class="icon green"><i class="ri-star-line"></i></div><div class="value">${data.rating}</div><div class="label">Rating</div></div>
-                <div class="stat-card"><div class="icon blue"><i class="ri-shopping-bag-line"></i></div><div class="value">${data.total_orders}</div><div class="label">Orders</div></div>
-                <div class="stat-card"><div class="icon orange"><i class="ri-truck-line"></i></div><div class="value">${money(data.delivery_fee)}</div><div class="label">Delivery Fee</div></div>
-                <div class="stat-card"><div class="icon purple"><i class="ri-time-line"></i></div><div class="value">${data.avg_prep_time_min}m</div><div class="label">Prep Time</div></div>
-            </div>
-            <div class="card"><div class="card-header"><h2>Menu (${menu.length} items)</h2></div>
-            <table><thead><tr><th>Item</th><th>Category</th><th>Price</th><th>Popular</th><th>Available</th></tr></thead><tbody>${
-                menu.length === 0 ? '<tr><td colspan="5" class="loading-row">No menu items</td></tr>' :
-                menu.map(i => `<tr>
-                    <td><div><strong>${i.name}</strong></div><small style="color:var(--text-secondary)">${i.description || ''}</small></td>
-                    <td><span class="rest-badge">${i.category}</span></td>
-                    <td><strong>${money(i.price)}</strong></td>
-                    <td>${i.is_popular ? '🔥' : '-'}</td>
-                    <td>${i.is_available ? '<span class="status active">Yes</span>' : '<span class="status cancelled">No</span>'}</td>
-                </tr>`).join('')
-            }</tbody></table></div>`;
+        const data = await apiFetch(`/restaurants/${id}`); if(!data) return; const menu = data.menu||[];
+        main().innerHTML = `<div class="header"><h1>${data.name}</h1><div class="header-actions"><button class="btn btn-outline" onclick="pageRestaurants()"><i class="ri-arrow-left-line"></i> Back</button></div></div><div class="stats-grid"><div class="stat-card"><div class="icon green"><i class="ri-star-line"></i></div><div class="value">${data.rating}</div><div class="label">Rating</div></div><div class="stat-card"><div class="icon blue"><i class="ri-shopping-bag-line"></i></div><div class="value">${data.total_orders}</div><div class="label">Orders</div></div><div class="stat-card"><div class="icon orange"><i class="ri-truck-line"></i></div><div class="value">${money(data.delivery_fee)}</div><div class="label">Delivery</div></div><div class="stat-card"><div class="icon purple"><i class="ri-time-line"></i></div><div class="value">${data.avg_prep_time_min}m</div><div class="label">Prep Time</div></div></div><div class="card"><div class="card-header"><h2>Menu (${menu.length})</h2></div><table><thead><tr><th>Item</th><th>Category</th><th>Price</th><th>Popular</th></tr></thead><tbody>${menu.length===0?'<tr><td colspan="4" class="loading-row">Empty</td></tr>':menu.map(i=>`<tr><td><strong>${i.name}</strong><br><small style="color:var(--text-secondary)">${i.description||''}</small></td><td><span class="rest-badge">${i.category}</span></td><td><strong>${money(i.price)}</strong></td><td>${i.is_popular?'&#128293;':'-'}</td></tr>`).join('')}</tbody></table></div>`;
     }
 
     // ==================== FOOD ORDERS ====================
     async function pageFoodOrders() {
-        main().innerHTML = `
-            <div class="header"><h1>Food Orders</h1><div class="header-actions"><button class="btn btn-primary" onclick="pageFoodOrders()"><i class="ri-refresh-line"></i> Refresh</button></div></div>
-            <div class="card"><table><thead><tr><th>ID</th><th>Customer</th><th>Restaurant</th><th>Items</th><th>Subtotal</th><th>Delivery</th><th>Total</th><th>Payment</th><th>Driver</th><th>Status</th><th>Time</th></tr></thead><tbody id="food-body"><tr><td colspan="11" class="loading-row">Loading...</td></tr></tbody></table></div>`;
-        const data = await apiFetch('/food-orders');
-        const orders = data?.orders || [];
-        $('food-body').innerHTML = orders.length === 0 ? '<tr><td colspan="11" class="loading-row">No food orders yet</td></tr>' :
-            orders.map(o => `<tr>
-                <td><strong>${o.id}</strong></td>
-                <td>${avatarCell(o.rider_name || 'Guest')}</td>
-                <td>${o.restaurant_id}</td>
-                <td>${(o.items || []).length} items</td>
-                <td>${money(o.subtotal)}</td>
-                <td>${money(o.delivery_fee)}</td>
-                <td><strong>${money(o.total)}</strong></td>
-                <td>${o.payment_method}</td>
-                <td>${o.driver?.name || '-'}</td>
-                <td>${statusBadge(o.status)}</td>
-                <td>${timeAgo(o.created_at)}</td>
-            </tr>`).join('');
+        main().innerHTML = `<div class="header"><h1>Food Orders</h1><div class="header-actions"><button class="btn btn-primary" onclick="pageFoodOrders()"><i class="ri-refresh-line"></i> Refresh</button></div></div><div class="card"><table><thead><tr><th>ID</th><th>Customer</th><th>Restaurant</th><th>Items</th><th>Total</th><th>Payment</th><th>Driver</th><th>Status</th><th>Time</th></tr></thead><tbody id="food-body"><tr><td colspan="9" class="loading-row">Loading...</td></tr></tbody></table></div>`;
+        const data = await apiFetch('/food-orders'); const orders = data?.orders||[];
+        $('food-body').innerHTML = orders.length===0?'<tr><td colspan="9" class="loading-row">No orders</td></tr>':orders.map(o=>`<tr><td><strong>${o.id}</strong></td><td>${avatarCell(o.rider_name||'Guest')}</td><td>${o.restaurant_id}</td><td>${(o.items||[]).length}</td><td><strong>${money(o.total)}</strong></td><td>${o.payment_method}</td><td>${o.driver?.name||'-'}</td><td>${statusBadge(o.status)}</td><td>${timeAgo(o.created_at)}</td></tr>`).join('');
     }
 
-    // ==================== SUPPORT ====================
-    function pageSupport() {
-        main().innerHTML = `
-            <div class="header"><h1>Support</h1></div>
-            <div class="grid-2-equal">
-                <div class="card"><div class="card-header"><h2>Support Tickets</h2></div><div class="card-body">
-                    <div class="empty"><i class="ri-customer-service-line"></i><p>No support tickets yet</p><p style="margin-top:8px;font-size:12px">Tickets from the SOS button and issue reports will appear here</p></div>
-                </div></div>
-                <div class="card"><div class="card-header"><h2>Quick Stats</h2></div><div class="card-body">
-                    <div style="display:grid;gap:12px">
-                        <div style="display:flex;justify-content:space-between;padding:12px;background:var(--bg);border-radius:10px"><span style="font-size:13px;color:var(--text-secondary)">Open Tickets</span><strong>0</strong></div>
-                        <div style="display:flex;justify-content:space-between;padding:12px;background:var(--bg);border-radius:10px"><span style="font-size:13px;color:var(--text-secondary)">Avg Response Time</span><strong>-</strong></div>
-                        <div style="display:flex;justify-content:space-between;padding:12px;background:var(--bg);border-radius:10px"><span style="font-size:13px;color:var(--text-secondary)">Resolved Today</span><strong>0</strong></div>
-                        <div style="display:flex;justify-content:space-between;padding:12px;background:var(--bg);border-radius:10px"><span style="font-size:13px;color:var(--text-secondary)">SOS Alerts</span><strong>0</strong></div>
-                    </div>
-                </div></div>
-            </div>
-            <div class="card"><div class="card-header"><h2>Safety Overview</h2></div><div class="card-body">
-                <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px">
-                    <div style="text-align:center;padding:24px;background:var(--bg);border-radius:12px"><i class="ri-shield-check-line" style="font-size:32px;color:var(--success);display:block;margin-bottom:8px"></i><div style="font-weight:700;font-size:18px">100%</div><div style="font-size:12px;color:var(--text-secondary)">Rides Completed Safely</div></div>
-                    <div style="text-align:center;padding:24px;background:var(--bg);border-radius:12px"><i class="ri-alarm-warning-line" style="font-size:32px;color:var(--warning);display:block;margin-bottom:8px"></i><div style="font-weight:700;font-size:18px">0</div><div style="font-size:12px;color:var(--text-secondary)">Incidents This Week</div></div>
-                    <div style="text-align:center;padding:24px;background:var(--bg);border-radius:12px"><i class="ri-user-star-line" style="font-size:32px;color:var(--info);display:block;margin-bottom:8px"></i><div style="font-weight:700;font-size:18px">4.75</div><div style="font-size:12px;color:var(--text-secondary)">Avg Driver Rating</div></div>
-                </div>
-            </div></div>`;
+    // ==================== DISPUTES ====================
+    async function pageDisputes() {
+        main().innerHTML = `<div class="header"><h1>Disputes & Refunds</h1><div class="header-actions"><button class="btn btn-primary" onclick="pageDisputes()"><i class="ri-refresh-line"></i> Refresh</button></div></div><div class="tabs"><div class="tab active" onclick="filterDisputes('',this)">All</div><div class="tab" onclick="filterDisputes('open',this)">Open</div><div class="tab" onclick="filterDisputes('investigating',this)">Investigating</div><div class="tab" onclick="filterDisputes('resolved',this)">Resolved</div></div><div class="card"><table><thead><tr><th>ID</th><th>Type</th><th>Description</th><th>Ride/Order</th><th>Refund</th><th>Status</th><th>Created</th><th>Action</th></tr></thead><tbody id="disputes-body"><tr><td colspan="8" class="loading-row">Loading...</td></tr></tbody></table></div>`;
+        window._disputeFilter = '';
+        await loadDisputes();
     }
+    async function loadDisputes() {
+        const f = window._disputeFilter || '';
+        const data = await apiFetch(`/disputes${f?'?status='+f:''}`);
+        const disputes = data?.disputes || [];
+        $('disputes-body').innerHTML = disputes.length===0 ? '<tr><td colspan="8" class="loading-row">No disputes found</td></tr>' :
+            disputes.map(d => `<tr>
+                <td><strong>#${d.id}</strong></td>
+                <td><span class="rest-badge">${d.type}</span></td>
+                <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${d.description}</td>
+                <td>${d.job_id||d.order_id||'-'}</td>
+                <td>${d.refund_amount>0?money(d.refund_amount):'-'}</td>
+                <td>${statusBadge(d.status)}</td>
+                <td>${timeAgo(d.created_at)}</td>
+                <td>${d.status==='open'||d.status==='investigating'?`<button class="btn btn-sm btn-primary" onclick="showResolveDialog(${d.id})">Resolve</button>`:d.resolution||'-'}</td>
+            </tr>`).join('');
+    }
+    function filterDisputes(status, el) {
+        document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active')); el.classList.add('active');
+        window._disputeFilter = status; loadDisputes();
+    }
+    async function showResolveDialog(id) {
+        const resolution = prompt('Resolution message:');
+        if (!resolution) return;
+        const refund = parseFloat(prompt('Refund amount (0 for none):', '0')) || 0;
+        await apiPost(`/disputes/${id}/resolve`, { resolution, refund_amount: refund, status: 'resolved' });
+        loadDisputes();
+    }
+
+    // ==================== VERIFICATION ====================
+    async function pageVerification() {
+        main().innerHTML = `<div class="header"><h1>Driver Verification</h1><div class="header-actions"><button class="btn btn-primary" onclick="pageVerification()"><i class="ri-refresh-line"></i> Refresh</button></div></div><div class="tabs"><div class="tab active" onclick="filterDocs('pending',this)">Pending</div><div class="tab" onclick="filterDocs('approved',this)">Approved</div><div class="tab" onclick="filterDocs('rejected',this)">Rejected</div><div class="tab" onclick="filterDocs('',this)">All</div></div><div class="card"><table><thead><tr><th>ID</th><th>Driver</th><th>Type</th><th>Doc Number</th><th>Submitted</th><th>Status</th><th>Actions</th></tr></thead><tbody id="docs-body"><tr><td colspan="7" class="loading-row">Loading...</td></tr></tbody></table></div>`;
+        window._docFilter = 'pending';
+        await loadDocs();
+    }
+    async function loadDocs() {
+        const f = window._docFilter;
+        const data = await apiFetch(`/admin/documents${f?'?status='+f:''}`);
+        const docs = data?.documents || [];
+        $('docs-body').innerHTML = docs.length===0 ? '<tr><td colspan="7" class="loading-row">No documents found</td></tr>' :
+            docs.map(d => `<tr>
+                <td><strong>#${d.id}</strong></td>
+                <td>${d.driver_id}</td>
+                <td><span class="rest-badge">${d.doc_type.replace('_',' ')}</span></td>
+                <td>${d.doc_number||'-'}</td>
+                <td>${timeAgo(d.submitted_at)}</td>
+                <td>${statusBadge(d.status)}</td>
+                <td>${d.status==='pending'?`<button class="btn btn-sm btn-success" onclick="reviewDoc(${d.id},'approved')">Approve</button> <button class="btn btn-sm btn-danger" onclick="reviewDoc(${d.id},'rejected')">Reject</button>`:d.reviewed_by?'by '+d.reviewed_by:'-'}</td>
+            </tr>`).join('');
+    }
+    function filterDocs(status, el) {
+        document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active')); el.classList.add('active');
+        window._docFilter = status; loadDocs();
+    }
+    async function reviewDoc(id, status) {
+        let reason = '';
+        if (status === 'rejected') { reason = prompt('Rejection reason:'); if (!reason) return; }
+        await apiPost(`/admin/documents/${id}/review`, { status, reason });
+        loadDocs();
+    }
+
+    // ==================== SURGE PRICING ====================
+    async function pageSurge() {
+        main().innerHTML = `<div class="header"><h1>Surge Pricing</h1><div class="header-actions"><button class="btn btn-primary" onclick="pageSurge()"><i class="ri-refresh-line"></i> Refresh</button></div></div><div class="stats-grid" id="surge-stats"></div><div class="grid-2-equal"><div class="card"><div class="card-header"><h2>Current Status</h2></div><div class="card-body" id="surge-info"></div></div><div class="card"><div class="card-header"><h2>Manual Controls</h2></div><div class="card-body" id="surge-controls"></div></div></div>`;
+        const surge = await apiFetch('/surge');
+        if (!surge) return;
+
+        $('surge-stats').innerHTML = `
+            <div class="stat-card"><div class="icon ${surge.is_surge?'red':'green'}"><i class="ri-flashlight-line"></i></div><div class="value">${surge.multiplier}x</div><div class="label">${surge.is_surge?'Surge Active':'Normal'}</div></div>
+            <div class="stat-card"><div class="icon blue"><i class="ri-time-line"></i></div><div class="value">${surge.hour}:00</div><div class="label">Current Hour</div></div>
+            <div class="stat-card"><div class="icon orange"><i class="ri-calendar-line"></i></div><div class="value">${surge.is_weekend?'Yes':'No'}</div><div class="label">Weekend</div></div>
+            <div class="stat-card"><div class="icon purple"><i class="ri-settings-line"></i></div><div class="value">${surge.config.max_multiplier}x</div><div class="label">Max Multiplier</div></div>`;
+
+        $('surge-info').innerHTML = `
+            <div style="margin-bottom:16px"><span class="surge-badge ${surge.is_surge?'active':'normal'}"><i class="ri-flashlight-line"></i> ${surge.multiplier}x ${surge.is_surge?'SURGE':'Normal'}</span></div>
+            <div style="margin-bottom:12px;font-size:13px;color:var(--text-secondary)"><strong>Reasons:</strong> ${surge.reasons.length?surge.reasons.join(', '):'No surge conditions active'}</div>
+            <div style="font-size:13px;color:var(--text-secondary)"><strong>Peak hours:</strong> ${surge.config.peak_hours.map(h=>h[0]+':00-'+h[1]+':00').join(', ')}</div>
+            <div style="margin-top:8px;font-size:13px;color:var(--text-secondary)"><strong>Peak multiplier:</strong> ${surge.config.peak_multiplier}x &bull; <strong>Weekend:</strong> ${surge.config.weekend_multiplier}x &bull; <strong>Rain:</strong> ${surge.config.rain_multiplier}x</div>`;
+
+        $('surge-controls').innerHTML = `
+            <div style="display:grid;gap:16px">
+                <div style="display:flex;justify-content:space-between;align-items:center;padding:14px;background:var(--bg);border-radius:10px"><div><strong style="font-size:13px">Rain / Bad Weather</strong><div style="font-size:12px;color:var(--text-secondary)">Activate ${surge.config.rain_multiplier}x multiplier</div></div><button class="btn btn-sm ${surge.reasons.includes('Rain/bad weather')?'btn-danger':'btn-outline'}" onclick="toggleSurge('rain',${!surge.reasons.includes('Rain/bad weather')})">${surge.reasons.includes('Rain/bad weather')?'Deactivate':'Activate'}</button></div>
+                <div style="display:flex;justify-content:space-between;align-items:center;padding:14px;background:var(--bg);border-radius:10px"><div><strong style="font-size:13px">High Demand</strong><div style="font-size:12px;color:var(--text-secondary)">Activate ${surge.config.high_demand_multiplier}x multiplier</div></div><button class="btn btn-sm ${surge.reasons.includes('High demand')?'btn-danger':'btn-outline'}" onclick="toggleSurge('high_demand',${!surge.reasons.includes('High demand')})">${surge.reasons.includes('High demand')?'Deactivate':'Activate'}</button></div>
+                <div style="display:flex;justify-content:space-between;align-items:center;padding:14px;background:var(--bg);border-radius:10px"><div><strong style="font-size:13px">Manual Override</strong><div style="font-size:12px;color:var(--text-secondary)">Set exact multiplier (overrides all)</div></div><button class="btn btn-sm btn-outline" onclick="setManualSurge()">Set</button></div>
+                <div style="display:flex;justify-content:space-between;align-items:center;padding:14px;background:var(--bg);border-radius:10px"><div><strong style="font-size:13px">Reset All</strong><div style="font-size:12px;color:var(--text-secondary)">Clear all overrides</div></div><button class="btn btn-sm btn-outline" onclick="resetSurge()">Reset</button></div>
+            </div>`;
+    }
+    async function toggleSurge(type, val) { await apiPost('/surge/override', {[type]: val}); pageSurge(); }
+    async function setManualSurge() { const v = parseFloat(prompt('Multiplier (1.0-2.0):','1.5')); if(v&&v>=1&&v<=2) { await apiPost('/surge/override',{manual_multiplier:v}); pageSurge(); } }
+    async function resetSurge() { await apiPost('/surge/override',{rain:false,high_demand:false,manual_multiplier:null}); pageSurge(); }
 
     // ==================== SETTINGS ====================
     function pageSettings() {
-        main().innerHTML = `
-            <div class="header"><h1>Settings</h1></div>
-            <div class="grid-2-equal">
-                <div class="card"><div class="card-header"><h2>General</h2></div><div class="card-body">
-                    <div class="form-group"><label>Platform Name</label><input type="text" value="Famba"></div>
-                    <div class="form-group"><label>Tagline</label><input type="text" value="Rides & Food Delivery in Zimbabwe"></div>
-                    <div class="form-row">
-                        <div class="form-group"><label>Currency</label><select><option selected>USD ($)</option><option>ZWL</option><option>ZiG</option></select></div>
-                        <div class="form-group"><label>Country</label><input type="text" value="Zimbabwe" disabled></div>
-                    </div>
-                    <button class="btn btn-primary">Save Changes</button>
-                </div></div>
-                <div class="card"><div class="card-header"><h2>Ride Pricing</h2></div><div class="card-body">
-                    <div class="form-row">
-                        <div class="form-group"><label>Base Fare (USD)</label><input type="number" value="0.70" step="0.10"></div>
-                        <div class="form-group"><label>Per KM Rate</label><input type="number" value="0.35" step="0.05"></div>
-                    </div>
-                    <div class="form-row">
-                        <div class="form-group"><label>Peak Multiplier</label><input type="number" value="1.15" step="0.05"></div>
-                        <div class="form-group"><label>Multi-stop Fee</label><input type="number" value="0.50" step="0.10"></div>
-                    </div>
-                    <button class="btn btn-primary">Update Pricing</button>
-                </div></div>
-            </div>
-            <div class="grid-2-equal" style="margin-top:0">
-                <div class="card"><div class="card-header"><h2>Commission</h2></div><div class="card-body">
-                    <div class="form-group"><label>Driver Commission Rate (%)</label><input type="number" value="15" min="0" max="50"></div>
-                    <div class="form-group"><label>Food Delivery Commission (%)</label><input type="number" value="20" min="0" max="50"></div>
-                    <button class="btn btn-primary">Save</button>
-                </div></div>
-                <div class="card"><div class="card-header"><h2>API & Integration</h2></div><div class="card-body">
-                    <div style="display:grid;gap:12px">
-                        <div style="display:flex;justify-content:space-between;align-items:center;padding:12px;background:var(--bg);border-radius:10px"><div><strong style="font-size:13px">Backend API</strong><div style="font-size:12px;color:var(--text-secondary)">http://localhost:8000</div></div><span class="status active">Connected</span></div>
-                        <div style="display:flex;justify-content:space-between;align-items:center;padding:12px;background:var(--bg);border-radius:10px"><div><strong style="font-size:13px">SMS Provider</strong><div style="font-size:12px;color:var(--text-secondary)">Not configured</div></div><span class="status inactive">Off</span></div>
-                        <div style="display:flex;justify-content:space-between;align-items:center;padding:12px;background:var(--bg);border-radius:10px"><div><strong style="font-size:13px">Payment Gateway</strong><div style="font-size:12px;color:var(--text-secondary)">Not configured</div></div><span class="status inactive">Off</span></div>
-                        <div style="display:flex;justify-content:space-between;align-items:center;padding:12px;background:var(--bg);border-radius:10px"><div><strong style="font-size:13px">Maps (OSRM)</strong><div style="font-size:12px;color:var(--text-secondary)">router.project-osrm.org</div></div><span class="status active">Connected</span></div>
-                    </div>
-                </div></div>
-            </div>`;
+        main().innerHTML = `<div class="header"><h1>Settings</h1></div><div class="grid-2-equal"><div class="card"><div class="card-header"><h2>General</h2></div><div class="card-body"><div class="form-group"><label>Platform Name</label><input type="text" value="Famba"></div><div class="form-group"><label>Tagline</label><input type="text" value="Rides & Food Delivery in Zimbabwe"></div><div class="form-row"><div class="form-group"><label>Currency</label><select><option selected>USD ($)</option><option>ZWL</option><option>ZiG</option></select></div><div class="form-group"><label>Country</label><input type="text" value="Zimbabwe" disabled></div></div><button class="btn btn-primary">Save</button></div></div><div class="card"><div class="card-header"><h2>Ride Pricing</h2></div><div class="card-body"><div class="form-row"><div class="form-group"><label>Base Fare</label><input type="number" value="0.70" step="0.10"></div><div class="form-group"><label>Per KM</label><input type="number" value="0.35" step="0.05"></div></div><div class="form-row"><div class="form-group"><label>Peak Multiplier</label><input type="number" value="1.30" step="0.05"></div><div class="form-group"><label>Stop Fee</label><input type="number" value="0.50" step="0.10"></div></div><button class="btn btn-primary">Update</button></div></div></div><div class="grid-2-equal" style="margin-top:0"><div class="card"><div class="card-header"><h2>Commission</h2></div><div class="card-body"><div class="form-group"><label>Driver Commission (%)</label><input type="number" value="15" min="0" max="50"></div><div class="form-group"><label>Food Commission (%)</label><input type="number" value="20" min="0" max="50"></div><button class="btn btn-primary">Save</button></div></div><div class="card"><div class="card-header"><h2>API Status</h2></div><div class="card-body"><div style="display:grid;gap:12px"><div style="display:flex;justify-content:space-between;align-items:center;padding:12px;background:var(--bg);border-radius:10px"><div><strong style="font-size:13px">Backend API</strong><div style="font-size:12px;color:var(--text-secondary)">localhost:8000</div></div><span class="status active">Connected</span></div><div style="display:flex;justify-content:space-between;align-items:center;padding:12px;background:var(--bg);border-radius:10px"><div><strong style="font-size:13px">SMS Provider</strong></div><span class="status inactive">Off</span></div><div style="display:flex;justify-content:space-between;align-items:center;padding:12px;background:var(--bg);border-radius:10px"><div><strong style="font-size:13px">Payments</strong></div><span class="status inactive">Off</span></div><div style="display:flex;justify-content:space-between;align-items:center;padding:12px;background:var(--bg);border-radius:10px"><div><strong style="font-size:13px">Maps (OSRM)</strong></div><span class="status active">Connected</span></div></div></div></div></div>`;
     }
 
     // ==================== INIT ====================

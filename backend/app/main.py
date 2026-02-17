@@ -20,6 +20,8 @@ from .recommend import (
     classify_corridor,
     estimate_eta_minutes,
     estimate_price_usd,
+    get_surge_multiplier,
+    set_surge_override,
 )
 from .schemas import (
     CreateJob, Quote, QuoteRequest,
@@ -61,6 +63,11 @@ from .database import (
     pick_nearest_driver, update_driver_location,
     # Unified history
     get_user_history,
+    # Disputes
+    create_dispute, get_dispute, list_disputes, resolve_dispute,
+    # Driver documents
+    submit_driver_document, get_driver_documents,
+    list_pending_documents, list_all_documents, review_driver_document,
 )
 
 load_dotenv()
@@ -680,6 +687,133 @@ def order_history(limit: int = 50, _auth=Depends(require_auth)):
     """Get combined ride + food order history."""
     user_name = _auth.get("name")
     return {"history": get_user_history(user_name=user_name, limit=limit)}
+
+
+# ==================== SURGE PRICING ====================
+
+@app.get("/surge")
+def surge_status(_auth=Depends(require_auth)):
+    """Get current surge pricing status."""
+    return get_surge_multiplier()
+
+
+@app.post("/surge/override")
+def surge_override(payload: dict, _auth=Depends(require_auth)):
+    """Admin: override surge pricing."""
+    return set_surge_override(
+        rain=payload.get("rain"),
+        high_demand=payload.get("high_demand"),
+        manual=payload.get("manual_multiplier"),
+    )
+
+
+# ==================== DISPUTES ====================
+
+@app.post("/disputes")
+def create_dispute_route(payload: dict, _auth=Depends(require_auth)):
+    """Create a dispute/complaint."""
+    if not payload.get("type") or not payload.get("description"):
+        raise HTTPException(400, "Type and description are required")
+    data = {
+        "user_id": _auth.get("id"),
+        "job_id": payload.get("job_id"),
+        "order_id": payload.get("order_id"),
+        "type": payload["type"],
+        "description": payload["description"],
+    }
+    return create_dispute(data)
+
+
+@app.get("/disputes")
+def list_disputes_route(status: str = None, limit: int = 50,
+                        _auth=Depends(require_auth)):
+    """List disputes (admin)."""
+    return {"disputes": list_disputes(status=status, limit=limit)}
+
+
+@app.get("/disputes/{dispute_id}")
+def get_dispute_route(dispute_id: int, _auth=Depends(require_auth)):
+    d = get_dispute(dispute_id)
+    if not d:
+        raise HTTPException(404, "Dispute not found")
+    return d
+
+
+@app.post("/disputes/{dispute_id}/resolve")
+def resolve_dispute_route(dispute_id: int, payload: dict,
+                          _auth=Depends(require_auth)):
+    """Admin: resolve a dispute."""
+    resolution = payload.get("resolution", "")
+    refund = payload.get("refund_amount", 0)
+    status = payload.get("status", "resolved")
+    result = resolve_dispute(dispute_id, resolution, refund, status)
+    if not result:
+        raise HTTPException(404, "Dispute not found")
+
+    # Process refund if any
+    if refund > 0 and result.get("user_id"):
+        from .database import wallet_credit
+        wallet_credit(result["user_id"], refund,
+                      txn_type="refund",
+                      reference_id=str(dispute_id),
+                      description=f"Refund for dispute #{dispute_id}")
+
+    return result
+
+
+# ==================== DRIVER DOCUMENTS ====================
+
+@app.post("/drivers/{driver_id}/documents")
+def submit_document(driver_id: str, payload: dict,
+                    _auth=Depends(require_auth)):
+    """Driver: submit a document for verification."""
+    doc_type = payload.get("doc_type")
+    if doc_type not in ("national_id", "drivers_license",
+                        "vehicle_registration", "insurance"):
+        raise HTTPException(400, "Invalid document type")
+    data = {
+        "driver_id": driver_id,
+        "doc_type": doc_type,
+        "doc_number": payload.get("doc_number"),
+        "file_url": payload.get("file_url"),
+    }
+    return submit_driver_document(data)
+
+
+@app.get("/drivers/{driver_id}/documents")
+def get_documents(driver_id: str, _auth=Depends(require_auth)):
+    """Get all documents for a driver."""
+    return {"documents": get_driver_documents(driver_id)}
+
+
+@app.get("/admin/documents/pending")
+def pending_documents(_auth=Depends(require_auth)):
+    """Admin: list pending document verifications."""
+    return {"documents": list_pending_documents()}
+
+
+@app.get("/admin/documents")
+def all_documents(status: str = None, limit: int = 100,
+                  _auth=Depends(require_auth)):
+    """Admin: list all documents."""
+    return {"documents": list_all_documents(status=status, limit=limit)}
+
+
+@app.post("/admin/documents/{doc_id}/review")
+def review_document(doc_id: int, payload: dict,
+                    _auth=Depends(require_auth)):
+    """Admin: approve or reject a document."""
+    status = payload.get("status")
+    if status not in ("approved", "rejected"):
+        raise HTTPException(400, "Status must be 'approved' or 'rejected'")
+    result = review_driver_document(
+        doc_id, status,
+        reviewed_by=_auth.get("id", "admin"),
+        rejection_reason=payload.get("reason"),
+    )
+    if not result:
+        raise HTTPException(404, "Document not found")
+    return result
 
 
 # ==================== WEBSOCKET ====================
