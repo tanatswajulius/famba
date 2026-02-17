@@ -279,6 +279,35 @@ class WalletTransaction(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
+# ==================== FOOD RATING Model ====================
+
+class FoodOrderRating(Base):
+    __tablename__ = "food_order_ratings"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    order_id = Column(String(50), ForeignKey("food_orders.id"), nullable=False)
+    restaurant_id = Column(String(50), ForeignKey("restaurants.id"), nullable=False)
+    rider_id = Column(String(50), ForeignKey("users.id"), nullable=True)
+    food_rating = Column(Float, nullable=False)
+    delivery_rating = Column(Float, nullable=True)
+    comment = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+# ==================== CHAT Message Model ====================
+
+class ChatMessageModel(Base):
+    __tablename__ = "chat_messages"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    job_id = Column(String(50), ForeignKey("jobs.id"), nullable=True)
+    order_id = Column(String(50), ForeignKey("food_orders.id"), nullable=True)
+    sender_type = Column(String(20), nullable=False)  # rider, driver
+    sender_id = Column(String(50), nullable=True)
+    message = Column(Text, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
 # Database dependency
 @contextmanager
 def get_db():
@@ -1312,6 +1341,200 @@ def get_wallet_transactions(user_id: str, limit: int = 50) -> List[dict]:
             "description": t.description,
             "created_at": t.created_at.isoformat() if t.created_at else None,
         } for t in txns]
+
+
+# ==================== FOOD ORDER RATING CRUD ====================
+
+def add_food_rating(data: dict) -> dict:
+    """Add a food order rating."""
+    with get_db() as db:
+        rating = FoodOrderRating(
+            order_id=data["order_id"],
+            restaurant_id=data["restaurant_id"],
+            rider_id=data.get("rider_id"),
+            food_rating=data["food_rating"],
+            delivery_rating=data.get("delivery_rating"),
+            comment=data.get("comment"),
+        )
+        db.add(rating)
+
+        # Update restaurant average rating
+        restaurant = db.query(Restaurant).filter(
+            Restaurant.id == data["restaurant_id"]
+        ).first()
+        if restaurant:
+            avg = db.query(func.avg(FoodOrderRating.food_rating)).filter(
+                FoodOrderRating.restaurant_id == restaurant.id
+            ).scalar()
+            if avg:
+                restaurant.rating = round(avg, 2)
+
+        db.commit()
+        return {"ok": True, "id": rating.id, "restaurant_rating": restaurant.rating if restaurant else None}
+
+
+def get_restaurant_ratings(restaurant_id: str, limit: int = 20) -> List[dict]:
+    """Get ratings for a restaurant."""
+    with get_db() as db:
+        ratings = db.query(FoodOrderRating).filter(
+            FoodOrderRating.restaurant_id == restaurant_id
+        ).order_by(FoodOrderRating.created_at.desc()).limit(limit).all()
+        return [{
+            "id": r.id, "order_id": r.order_id,
+            "food_rating": r.food_rating, "delivery_rating": r.delivery_rating,
+            "comment": r.comment,
+            "created_at": r.created_at.isoformat() if r.created_at else None,
+        } for r in ratings]
+
+
+# ==================== CHAT CRUD ====================
+
+def save_chat_message(job_id: str = None, order_id: str = None,
+                      sender_type: str = "rider", sender_id: str = None,
+                      message: str = "") -> dict:
+    """Save a chat message."""
+    with get_db() as db:
+        msg = ChatMessageModel(
+            job_id=job_id, order_id=order_id,
+            sender_type=sender_type, sender_id=sender_id,
+            message=message,
+        )
+        db.add(msg)
+        db.commit()
+        db.refresh(msg)
+        return {
+            "id": msg.id, "job_id": msg.job_id, "order_id": msg.order_id,
+            "sender_type": msg.sender_type, "message": msg.message,
+            "created_at": msg.created_at.isoformat() if msg.created_at else None,
+        }
+
+
+def get_chat_history(job_id: str = None, order_id: str = None,
+                     limit: int = 50) -> List[dict]:
+    """Get chat messages for a job or order."""
+    with get_db() as db:
+        q = db.query(ChatMessageModel)
+        if job_id:
+            q = q.filter(ChatMessageModel.job_id == job_id)
+        elif order_id:
+            q = q.filter(ChatMessageModel.order_id == order_id)
+        else:
+            return []
+        msgs = q.order_by(ChatMessageModel.created_at.asc()).limit(limit).all()
+        return [{
+            "id": m.id, "job_id": m.job_id, "order_id": m.order_id,
+            "sender_type": m.sender_type, "message": m.message,
+            "created_at": m.created_at.isoformat() if m.created_at else None,
+        } for m in msgs]
+
+
+# ==================== PROXIMITY DRIVER MATCHING ====================
+
+import math
+
+
+def _haversine_km(lat1: float, lng1: float, lat2: float, lng2: float) -> float:
+    """Calculate distance between two lat/lng points in km."""
+    R = 6371.0
+    dlat = math.radians(lat2 - lat1)
+    dlng = math.radians(lng2 - lng1)
+    a = (math.sin(dlat / 2) ** 2 +
+         math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) *
+         math.sin(dlng / 2) ** 2)
+    return R * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+
+
+def pick_nearest_driver(pickup_lat: float = None, pickup_lng: float = None) -> dict:
+    """Pick the nearest available driver to a pickup location."""
+    if pickup_lat is None or pickup_lng is None:
+        return pick_driver()
+
+    with get_db() as db:
+        drivers = db.query(Driver).filter(
+            Driver.is_active == True,
+            Driver.lat.isnot(None),
+            Driver.lng.isnot(None),
+        ).all()
+
+        if not drivers:
+            return pick_driver()
+
+        best = None
+        best_dist = float('inf')
+        for d in drivers:
+            dist = _haversine_km(pickup_lat, pickup_lng, d.lat, d.lng)
+            if dist < best_dist:
+                best_dist = dist
+                best = d
+
+        if best:
+            return _driver_to_dict(best)
+        return pick_driver()
+
+
+def update_driver_location(driver_id: str, lat: float, lng: float) -> dict:
+    """Update a driver's live location."""
+    with get_db() as db:
+        driver = db.query(Driver).filter(Driver.id == driver_id).first()
+        if not driver:
+            return {"ok": False, "message": "Driver not found"}
+        driver.lat = lat
+        driver.lng = lng
+        driver.is_online = True
+        db.commit()
+        return {"ok": True, "driver_id": driver_id, "lat": lat, "lng": lng}
+
+
+# ==================== UNIFIED ORDER HISTORY ====================
+
+def get_user_history(user_name: str = None, limit: int = 50) -> List[dict]:
+    """Get combined ride + food order history for a user."""
+    results = []
+
+    with get_db() as db:
+        # Rides
+        ride_q = db.query(Job)
+        if user_name:
+            ride_q = ride_q.filter(Job.rider_name.ilike(f"%{user_name}%"))
+        rides = ride_q.order_by(Job.created_at.desc()).limit(limit).all()
+
+        for j in rides:
+            results.append({
+                "type": "ride",
+                "id": j.id,
+                "status": j.status,
+                "from": j.pickup_text,
+                "to": j.drop_text,
+                "amount": j.fare_usd,
+                "payment_method": j.payment_method,
+                "created_at": j.created_at.isoformat() if j.created_at else None,
+                "driver": json.loads(j.driver_json) if j.driver_json else None,
+            })
+
+        # Food orders
+        order_q = db.query(FoodOrder)
+        if user_name:
+            order_q = order_q.filter(FoodOrder.rider_name.ilike(f"%{user_name}%"))
+        orders = order_q.order_by(FoodOrder.created_at.desc()).limit(limit).all()
+
+        for o in orders:
+            restaurant = db.query(Restaurant).filter(Restaurant.id == o.restaurant_id).first()
+            results.append({
+                "type": "food_order",
+                "id": o.id,
+                "status": o.status,
+                "restaurant": restaurant.name if restaurant else o.restaurant_id,
+                "items_count": len(json.loads(o.items_json)) if o.items_json else 0,
+                "amount": o.total,
+                "payment_method": o.payment_method,
+                "delivery_address": o.delivery_address,
+                "created_at": o.created_at.isoformat() if o.created_at else None,
+                "driver": json.loads(o.driver_json) if o.driver_json else None,
+            })
+
+    # Sort by date, newest first
+    results.sort(key=lambda x: x.get("created_at") or "", reverse=True)
+    return results[:limit]
 
 
 # Initialize on import

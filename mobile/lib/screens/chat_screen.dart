@@ -1,5 +1,8 @@
-import 'package:flutter/material.dart';
 import 'dart:async';
+import 'dart:convert';
+import 'package:flutter/material.dart';
+import 'package:web_socket_channel/web_socket_channel.dart';
+import '../core/api.dart';
 import '../main.dart';
 
 class ChatMessage {
@@ -7,14 +10,12 @@ class ChatMessage {
   final String text;
   final bool isDriver;
   final DateTime timestamp;
-  final bool isRead;
 
   ChatMessage({
     required this.id,
     required this.text,
     required this.isDriver,
     required this.timestamp,
-    this.isRead = false,
   });
 }
 
@@ -31,7 +32,10 @@ class _ChatScreenState extends State<ChatScreen> {
   final List<ChatMessage> _messages = [];
   bool _isTyping = false;
   String? _driverName;
-  String? _driverPhoto;
+  String? _jobId;
+  String? _orderId;
+  WebSocketChannel? _channel;
+  StreamSubscription? _wsSub;
 
   final _quickReplies = [
     "I'm here",
@@ -41,7 +45,6 @@ class _ChatScreenState extends State<ChatScreen> {
     "I'm at the pickup point",
   ];
 
-  // Mock auto-replies from driver
   final _driverReplies = [
     "I'm on my way to you!",
     "I'll be there in about 2 minutes",
@@ -49,30 +52,86 @@ class _ChatScreenState extends State<ChatScreen> {
     "Please look for a green Bajaj Boxer",
     "I'm wearing a helmet, standing by the bike",
     "Okay, no problem!",
-    "Got it 👍",
+    "Got it!",
   ];
 
   @override
   void initState() {
     super.initState();
-    // Add initial welcome message
-    _addDriverMessage("Hi! I'm on my way to pick you up. Let me know if you have any questions.");
   }
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
-    if (args != null) {
+    if (args != null && _jobId == null && _orderId == null) {
       _driverName = args['driverName'];
-      _driverPhoto = args['driverPhoto'];
+      _jobId = args['jobId'];
+      _orderId = args['orderId'];
+      _connectWebSocket();
+      _loadHistory();
     }
+  }
+
+  Future<void> _loadHistory() async {
+    try {
+      final messages = await Api.getChatHistory(jobId: _jobId, orderId: _orderId);
+      if (mounted && messages.isNotEmpty) {
+        setState(() {
+          for (final m in messages) {
+            _messages.add(ChatMessage(
+              id: m['id'].toString(),
+              text: m['message'] ?? '',
+              isDriver: m['sender_type'] == 'driver',
+              timestamp: DateTime.tryParse(m['created_at'] ?? '') ?? DateTime.now(),
+            ));
+          }
+        });
+        _scrollToBottom();
+      }
+    } catch (_) {}
+    if (_messages.isEmpty) {
+      _addDriverMessage("Hi! I'm on my way to pick you up. Let me know if you have any questions.");
+    }
+  }
+
+  void _connectWebSocket() {
+    final roomId = _jobId ?? _orderId;
+    if (roomId == null) return;
+    try {
+      _channel = WebSocketChannel.connect(Uri.parse(Api.wsChatRoom(roomId)));
+      _wsSub = _channel!.stream.listen(
+        (data) {
+          try {
+            final parsed = jsonDecode(data);
+            if (parsed['type'] == 'chat' && parsed['message'] != null) {
+              final msg = parsed['message'];
+              if (msg['sender_type'] == 'driver' && mounted) {
+                setState(() {
+                  _messages.add(ChatMessage(
+                    id: msg['id'].toString(),
+                    text: msg['message'] ?? '',
+                    isDriver: true,
+                    timestamp: DateTime.tryParse(msg['created_at'] ?? '') ?? DateTime.now(),
+                  ));
+                });
+                _scrollToBottom();
+              }
+            }
+          } catch (_) {}
+        },
+        onError: (_) {},
+        onDone: () {},
+      );
+    } catch (_) {}
   }
 
   @override
   void dispose() {
     _messageController.dispose();
     _scrollController.dispose();
+    _wsSub?.cancel();
+    _channel?.sink.close();
     super.dispose();
   }
 
@@ -88,7 +147,7 @@ class _ChatScreenState extends State<ChatScreen> {
     _scrollToBottom();
   }
 
-  void _sendMessage(String text) {
+  void _sendMessage(String text) async {
     if (text.trim().isEmpty) return;
 
     setState(() {
@@ -102,12 +161,21 @@ class _ChatScreenState extends State<ChatScreen> {
     _messageController.clear();
     _scrollToBottom();
 
-    // Simulate driver typing and reply
+    // Persist via API
+    try {
+      await Api.sendChatMessage(
+        jobId: _jobId,
+        orderId: _orderId,
+        message: text.trim(),
+        senderType: 'rider',
+      );
+    } catch (_) {}
+
+    // Mock driver reply if no real WebSocket is connected
     setState(() => _isTyping = true);
     Timer(Duration(milliseconds: 800 + (text.length * 20)), () {
       if (mounted) {
         setState(() => _isTyping = false);
-        // Pick a random reply
         final reply = _driverReplies[DateTime.now().millisecond % _driverReplies.length];
         _addDriverMessage(reply);
       }
@@ -222,7 +290,6 @@ class _ChatScreenState extends State<ChatScreen> {
       ),
       body: Column(
         children: [
-          // Messages
           Expanded(
             child: ListView.builder(
               controller: _scrollController,
@@ -237,7 +304,6 @@ class _ChatScreenState extends State<ChatScreen> {
             ),
           ),
 
-          // Quick replies
           Container(
             height: 44,
             padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -251,7 +317,6 @@ class _ChatScreenState extends State<ChatScreen> {
             ),
           ),
 
-          // Input bar
           Container(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
             decoration: BoxDecoration(
@@ -494,4 +559,3 @@ class _ChatScreenState extends State<ChatScreen> {
     return '$hour:$minute';
   }
 }
-

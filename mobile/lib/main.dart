@@ -21,9 +21,7 @@ import 'screens/restaurants_screen.dart';
 import 'screens/restaurant_detail_screen.dart';
 import 'screens/cart_screen.dart';
 import 'screens/food_order_tracking_screen.dart';
-import 'screens/restaurant_detail_screen.dart';
-import 'screens/cart_screen.dart';
-import 'screens/food_order_tracking_screen.dart';
+import 'screens/history_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -230,7 +228,7 @@ class FambaApp extends StatelessWidget {
         '/quote': (_) => const QuoteScreen(),
         '/track': (_) => const TrackingScreen(),
         '/wallet': (_) => const WalletScreen(),
-        '/history': (_) => const TripHistoryScreen(),
+        '/history': (_) => const HistoryScreen(),
         '/profile': (_) => const ProfileScreen(),
         '/receipt': (_) => const ReceiptScreen(),
         '/saved-places': (_) => const SavedPlacesScreen(),
@@ -243,6 +241,7 @@ class FambaApp extends StatelessWidget {
         '/restaurant-detail': (_) => const RestaurantDetailScreen(),
         '/cart': (_) => const CartScreen(),
         '/food-order-tracking': (_) => const FoodOrderTrackingScreen(),
+        '/order-history': (_) => const HistoryScreen(),
       },
     );
   }

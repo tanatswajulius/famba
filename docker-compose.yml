@@ -1,5 +1,6 @@
 # Famba Full Stack Docker Compose
 # Usage: docker-compose up -d
+# Dev:   docker-compose up --build
 
 version: '3.8'
 
@@ -57,6 +58,7 @@ services:
       - SECRET_KEY=${SECRET_KEY:-change-this-in-production}
       - BASIC_USER=${BASIC_USER:-demo}
       - BASIC_PASS=${BASIC_PASS:-demo123}
+      - CORS_ORIGINS=http://localhost:3000,http://localhost:8080,http://localhost:8081
     ports:
       - "8000:8000"
     healthcheck:
@@ -65,7 +67,7 @@ services:
       timeout: 10s
       retries: 3
 
-  # Admin Dashboard (nginx serving static files)
+  # Admin Dashboard + Reverse Proxy
   admin:
     image: nginx:alpine
     container_name: famba-admin
@@ -85,4 +87,3 @@ volumes:
 networks:
   default:
     name: famba-network
-

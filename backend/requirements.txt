@@ -6,7 +6,7 @@ uvicorn[standard]==0.30.0
 
 # Database
 sqlalchemy>=2.0.36  # Updated for Python 3.13 compatibility
-# psycopg2-binary==2.9.9  # PostgreSQL adapter (optional, not needed for SQLite)
+psycopg2-binary==2.9.9  # PostgreSQL adapter (for production)
 alembic>=1.13.1  # Database migrations
 
 # Authentication
@@ -23,6 +23,9 @@ redis==5.0.4
 
 # HTTP Client
 httpx==0.27.0
+
+# WebSocket
+websockets>=12.0
 
 # Utilities
 python-dateutil==2.9.0

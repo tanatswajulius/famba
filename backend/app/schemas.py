@@ -72,3 +72,29 @@ class WalletPayment(BaseModel):
     reference_id: str
     type: str = "ride_payment"  # ride_payment, food_payment
     description: Optional[str] = None
+
+
+# ==================== Rating schemas ====================
+
+class FoodOrderRating(BaseModel):
+    order_id: str
+    restaurant_id: str
+    food_rating: float  # 1-5
+    delivery_rating: Optional[float] = None  # 1-5
+    comment: Optional[str] = None
+
+
+# ==================== Chat schemas ====================
+
+class ChatMessage(BaseModel):
+    job_id: Optional[str] = None
+    order_id: Optional[str] = None
+    sender_type: str = "rider"  # rider, driver
+    message: str
+
+
+# ==================== Driver location ====================
+
+class DriverLocationUpdate(BaseModel):
+    lat: float
+    lng: float

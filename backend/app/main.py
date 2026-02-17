@@ -24,6 +24,7 @@ from .recommend import (
 from .schemas import (
     CreateJob, Quote, QuoteRequest,
     CreateFoodOrder, WalletTopUp, WalletPayment,
+    FoodOrderRating, ChatMessage, DriverLocationUpdate,
 )
 from .simulator import simulate
 from .database import (
@@ -52,6 +53,14 @@ from .database import (
     get_wallet_transactions,
     # Drivers list
     get_all_drivers,
+    # Food ratings
+    add_food_rating, get_restaurant_ratings,
+    # Chat
+    save_chat_message, get_chat_history,
+    # Proximity matching
+    pick_nearest_driver, update_driver_location,
+    # Unified history
+    get_user_history,
 )
 
 load_dotenv()
@@ -61,12 +70,40 @@ app = FastAPI(
     version=settings.api_version,
     debug=settings.debug,
 )
+
+# CORS — restrict in production, allow all in dev
+_cors_origins = settings.cors_origins.split(",")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.cors_origins.split(","),
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=_cors_origins if settings.is_production else ["*"],
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "Accept"],
+    max_age=600,
 )
+
+
+# Security headers middleware
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.requests import Request
+from starlette.responses import Response
+
+
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        response: Response = await call_next(request)
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["X-XSS-Protection"] = "1; mode=block"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        if settings.is_production:
+            response.headers["Strict-Transport-Security"] = (
+                "max-age=63072000; includeSubDomains"
+            )
+        return response
+
+
+app.add_middleware(SecurityHeadersMiddleware)
 
 # Legacy auth constants (for backward compatibility)
 EXPECTED_USER = settings.basic_user
@@ -155,7 +192,12 @@ def quote(q: QuoteRequest, _auth=Depends(require_auth)):
 @app.post("/jobs")
 def create(j: CreateJob, _auth=Depends(require_auth)):
     job = create_job(j.model_dump())
-    drv = get_driver_by_id(j.driver_id) or pick_driver()
+    # Use proximity matching if coordinates available, else fallback to rotation
+    drv = get_driver_by_id(j.driver_id) if j.driver_id else None
+    if not drv:
+        pickup_lat = job.get("pickup_lat")
+        pickup_lng = job.get("pickup_lng")
+        drv = pick_nearest_driver(pickup_lat, pickup_lng)
     update_job(
         job["id"], status="driver_assigned",
         driver_id=drv["id"], driver=drv,
@@ -428,8 +470,9 @@ def create_order(order: CreateFoodOrder, _auth=Depends(require_auth)):
 
     food_order = create_food_order(order_data)
 
-    # Auto-assign a driver for delivery
-    drv = pick_driver()
+    # Auto-assign nearest driver for delivery
+    drv = pick_nearest_driver(restaurant.get("lat") if isinstance(restaurant, dict) else restaurant.lat,
+                               restaurant.get("lng") if isinstance(restaurant, dict) else restaurant.lng)
     update_food_order(food_order["id"], status="confirmed", driver_id=drv["id"], driver=drv)
 
     return get_food_order(food_order["id"])
@@ -562,7 +605,154 @@ def admin_users(limit: int = 100, _auth=Depends(require_auth)):
     return {"users": safe_users}
 
 
+# ==================== FOOD RATINGS ====================
+
+@app.post("/food-orders/{order_id}/rate")
+def rate_food_order(order_id: str, rating: FoodOrderRating, _auth=Depends(require_auth)):
+    """Rate a food order."""
+    order = get_food_order(order_id)
+    if not order:
+        raise HTTPException(404, "Order not found")
+    if order["status"] != "delivered":
+        raise HTTPException(400, "Can only rate delivered orders")
+
+    result = add_food_rating({
+        "order_id": order_id,
+        "restaurant_id": rating.restaurant_id,
+        "rider_id": _auth.get("id"),
+        "food_rating": rating.food_rating,
+        "delivery_rating": rating.delivery_rating,
+        "comment": rating.comment,
+    })
+    return result
+
+
+@app.get("/restaurants/{restaurant_id}/ratings")
+def restaurant_ratings(restaurant_id: str, limit: int = 20, _auth=Depends(require_auth)):
+    """Get ratings for a restaurant."""
+    return {"ratings": get_restaurant_ratings(restaurant_id, limit)}
+
+
+# ==================== CHAT ====================
+
+@app.post("/chat/send")
+async def send_chat_message(msg: ChatMessage, _auth=Depends(require_auth)):
+    """Send a chat message (persisted + broadcast via WS)."""
+    saved = save_chat_message(
+        job_id=msg.job_id, order_id=msg.order_id,
+        sender_type=msg.sender_type,
+        sender_id=_auth.get("id"),
+        message=msg.message,
+    )
+    # Also broadcast via WebSocket if there's a job or order room
+    room_id = msg.job_id or msg.order_id
+    if room_id:
+        await chat_room.broadcast(room_id, {"type": "chat", "message": saved})
+    return saved
+
+
+@app.get("/chat/history")
+def chat_history(job_id: str = None, order_id: str = None,
+                 limit: int = 50, _auth=Depends(require_auth)):
+    """Get chat history for a job or order."""
+    return {"messages": get_chat_history(job_id=job_id, order_id=order_id, limit=limit)}
+
+
+# ==================== DRIVER LOCATION ====================
+
+@app.post("/drivers/{driver_id}/location")
+async def driver_location_update(driver_id: str, loc: DriverLocationUpdate,
+                                 _auth=Depends(require_auth)):
+    """Update driver's live GPS location."""
+    result = update_driver_location(driver_id, loc.lat, loc.lng)
+    if not result.get("ok"):
+        raise HTTPException(404, result.get("message", "Driver not found"))
+
+    # Broadcast location to any tracking subscribers
+    await driver_tracker.broadcast_driver_location(driver_id, loc.lat, loc.lng)
+    return result
+
+
+# ==================== UNIFIED HISTORY ====================
+
+@app.get("/history")
+def order_history(limit: int = 50, _auth=Depends(require_auth)):
+    """Get combined ride + food order history."""
+    user_name = _auth.get("name")
+    return {"history": get_user_history(user_name=user_name, limit=limit)}
+
+
 # ==================== WEBSOCKET ====================
+
+# Driver location tracker — riders subscribe to watch a driver
+class DriverTracker:
+    def __init__(self):
+        self.subscribers: Dict[str, Set[WebSocket]] = {}  # driver_id -> watchers
+
+    async def subscribe(self, ws: WebSocket, driver_id: str):
+        await ws.accept()
+        if driver_id not in self.subscribers:
+            self.subscribers[driver_id] = set()
+        self.subscribers[driver_id].add(ws)
+
+    def unsubscribe(self, ws: WebSocket, driver_id: str):
+        if driver_id in self.subscribers:
+            self.subscribers[driver_id].discard(ws)
+            if not self.subscribers[driver_id]:
+                del self.subscribers[driver_id]
+
+    async def broadcast_driver_location(self, driver_id: str, lat: float, lng: float):
+        if driver_id not in self.subscribers:
+            return
+        dead = set()
+        for ws in self.subscribers[driver_id]:
+            try:
+                await ws.send_json({
+                    "type": "driver_location",
+                    "driver_id": driver_id,
+                    "lat": lat, "lng": lng,
+                })
+            except Exception:
+                dead.add(ws)
+        for ws in dead:
+            self.subscribers[driver_id].discard(ws)
+
+
+driver_tracker = DriverTracker()
+
+
+# Chat WebSocket — riders and drivers join a room
+class ChatRoom:
+    def __init__(self):
+        self.rooms: Dict[str, Set[WebSocket]] = {}
+
+    async def join(self, ws: WebSocket, room_id: str):
+        await ws.accept()
+        if room_id not in self.rooms:
+            self.rooms[room_id] = set()
+        self.rooms[room_id].add(ws)
+
+    def leave(self, ws: WebSocket, room_id: str):
+        if room_id in self.rooms:
+            self.rooms[room_id].discard(ws)
+            if not self.rooms[room_id]:
+                del self.rooms[room_id]
+
+    async def broadcast(self, room_id: str, message: dict):
+        if room_id not in self.rooms:
+            return
+        dead = set()
+        for ws in self.rooms[room_id]:
+            try:
+                await ws.send_json(message)
+            except Exception:
+                dead.add(ws)
+        for ws in dead:
+            self.rooms[room_id].discard(ws)
+
+
+chat_room = ChatRoom()
+
 
 class ConnectionManager:
     def __init__(self):
@@ -640,3 +830,64 @@ async def push_update(job_id: str, payload: dict, _auth=Depends(require_auth)):
         "data": payload.get("data"),
     })
     return {"ok": True, "connections": len(manager.active_connections.get(job_id, set()))}
+
+
+@app.websocket("/ws/driver/{driver_id}")
+async def websocket_driver_tracking(websocket: WebSocket, driver_id: str):
+    """WebSocket: rider subscribes to live driver location updates."""
+    await driver_tracker.subscribe(websocket, driver_id)
+    try:
+        while True:
+            try:
+                data = await asyncio.wait_for(websocket.receive_text(), timeout=30.0)
+                if data == "ping":
+                    await websocket.send_text("pong")
+            except asyncio.TimeoutError:
+                await websocket.send_json({"type": "heartbeat"})
+    except WebSocketDisconnect:
+        pass
+    finally:
+        driver_tracker.unsubscribe(websocket, driver_id)
+
+
+@app.websocket("/ws/chat/{room_id}")
+async def websocket_chat(websocket: WebSocket, room_id: str):
+    """WebSocket: real-time chat between rider and driver."""
+    await chat_room.join(websocket, room_id)
+    try:
+        while True:
+            data = await websocket.receive_json()
+            msg_type = data.get("type", "message")
+            if msg_type == "message":
+                saved = save_chat_message(
+                    job_id=data.get("job_id"), order_id=data.get("order_id"),
+                    sender_type=data.get("sender_type", "rider"),
+                    sender_id=data.get("sender_id"),
+                    message=data.get("message", ""),
+                )
+                await chat_room.broadcast(room_id, {"type": "chat", "message": saved})
+            elif msg_type == "ping":
+                await websocket.send_text("pong")
+    except WebSocketDisconnect:
+        pass
+    finally:
+        chat_room.leave(websocket, room_id)
+
+
+@app.websocket("/ws/driver")
+async def websocket_driver_dispatch(websocket: WebSocket):
+    """WebSocket: driver app connects for ride/delivery dispatch.
+    Currently a stub that keeps the connection alive.
+    Real dispatch would push new ride/delivery requests here.
+    """
+    await websocket.accept()
+    try:
+        while True:
+            try:
+                data = await asyncio.wait_for(websocket.receive_text(), timeout=30.0)
+                if data == "ping":
+                    await websocket.send_text("pong")
+            except asyncio.TimeoutError:
+                await websocket.send_json({"type": "heartbeat"})
+    except WebSocketDisconnect:
+        pass

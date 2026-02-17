@@ -89,7 +89,7 @@ class DriverApi {
     required String orderId,
     required String status,
   }) async {
-    final res = await http.put(
+    final res = await http.post(
       Uri.parse('$base/food-orders/$orderId/status'),
       headers: _headers(),
       body: jsonEncode({'status': status}),
@@ -123,9 +123,43 @@ class DriverApi {
     );
   }
 
-  // WebSocket URL for real-time updates
-  static String get wsUrl {
-    final wsBase = base.replaceFirst('http', 'ws');
-    return '$wsBase/ws/driver';
+  // ==================== CHAT ====================
+
+  static Future<Map<String, dynamic>> sendChatMessage({
+    String? jobId,
+    String? orderId,
+    required String message,
+  }) async {
+    final res = await http.post(
+      Uri.parse('$base/chat/send'),
+      headers: _headers(),
+      body: jsonEncode({
+        if (jobId != null) 'job_id': jobId,
+        if (orderId != null) 'order_id': orderId,
+        'sender_type': 'driver',
+        'message': message,
+      }),
+    );
+    return jsonDecode(res.body);
   }
+
+  static Future<List<Map<String, dynamic>>> getChatHistory({
+    String? jobId,
+    String? orderId,
+  }) async {
+    var url = '$base/chat/history?limit=50';
+    if (jobId != null) url += '&job_id=$jobId';
+    if (orderId != null) url += '&order_id=$orderId';
+    final res = await http.get(Uri.parse(url), headers: _headers());
+    final data = jsonDecode(res.body);
+    return List<Map<String, dynamic>>.from(data['messages'] ?? []);
+  }
+
+  // ==================== WebSocket URLs ====================
+
+  static String get wsBase => base.replaceFirst('http', 'ws');
+
+  static String get wsUrl => '$wsBase/ws/driver';
+
+  static String wsChatRoom(String roomId) => '$wsBase/ws/chat/$roomId';
 }

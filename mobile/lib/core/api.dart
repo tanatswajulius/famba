@@ -333,4 +333,96 @@ class Api {
     final data = jsonDecode(res.body);
     return List<Map<String, dynamic>>.from(data['transactions'] ?? []);
   }
+
+  // ==================== FOOD RATINGS ====================
+
+  static Future<Map<String, dynamic>> rateFoodOrder({
+    required String orderId,
+    required String restaurantId,
+    required double foodRating,
+    double? deliveryRating,
+    String? comment,
+  }) async {
+    final res = await http.post(
+      Uri.parse('$base/food-orders/$orderId/rate'),
+      headers: _headers(),
+      body: jsonEncode({
+        'order_id': orderId,
+        'restaurant_id': restaurantId,
+        'food_rating': foodRating,
+        if (deliveryRating != null) 'delivery_rating': deliveryRating,
+        if (comment != null) 'comment': comment,
+      }),
+    );
+    return jsonDecode(res.body);
+  }
+
+  static Future<List<Map<String, dynamic>>> getRestaurantRatings(
+      String restaurantId,
+      {int limit = 20}) async {
+    final res = await http.get(
+      Uri.parse('$base/restaurants/$restaurantId/ratings?limit=$limit'),
+      headers: _headers(),
+    );
+    final data = jsonDecode(res.body);
+    return List<Map<String, dynamic>>.from(data['ratings'] ?? []);
+  }
+
+  // ==================== CHAT ====================
+
+  static Future<Map<String, dynamic>> sendChatMessage({
+    String? jobId,
+    String? orderId,
+    required String message,
+    String senderType = 'rider',
+  }) async {
+    final res = await http.post(
+      Uri.parse('$base/chat/send'),
+      headers: _headers(),
+      body: jsonEncode({
+        if (jobId != null) 'job_id': jobId,
+        if (orderId != null) 'order_id': orderId,
+        'sender_type': senderType,
+        'message': message,
+      }),
+    );
+    return jsonDecode(res.body);
+  }
+
+  static Future<List<Map<String, dynamic>>> getChatHistory({
+    String? jobId,
+    String? orderId,
+    int limit = 50,
+  }) async {
+    var url = '$base/chat/history?limit=$limit';
+    if (jobId != null) url += '&job_id=$jobId';
+    if (orderId != null) url += '&order_id=$orderId';
+    final res = await http.get(Uri.parse(url), headers: _headers());
+    final data = jsonDecode(res.body);
+    return List<Map<String, dynamic>>.from(data['messages'] ?? []);
+  }
+
+  // ==================== UNIFIED HISTORY ====================
+
+  static Future<List<Map<String, dynamic>>> getOrderHistory({int limit = 50}) async {
+    final res = await http.get(
+      Uri.parse('$base/history?limit=$limit'),
+      headers: _headers(),
+    );
+    final data = jsonDecode(res.body);
+    return List<Map<String, dynamic>>.from(data['history'] ?? []);
+  }
+
+  // ==================== WebSocket URLs ====================
+
+  static String get wsBase => base.replaceFirst('http', 'ws');
+
+  static String wsTrackJob(String jobId) =>
+      '$wsBase/ws/track/$jobId?token=$basicUser:$basicPass';
+
+  static String wsDriverLocation(String driverId) =>
+      '$wsBase/ws/driver/$driverId';
+
+  static String wsChatRoom(String roomId) =>
+      '$wsBase/ws/chat/$roomId';
 }
