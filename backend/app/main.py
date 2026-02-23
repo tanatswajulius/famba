@@ -23,8 +23,6 @@ from .recommend import (
     get_surge_multiplier,
     set_surge_override,
 )
-from .routing import get_route, get_eta_and_distance
-from .email_service import notify
 from .schemas import (
     CreateJob, Quote, QuoteRequest,
     CreateFoodOrder, WalletTopUp, WalletPayment,
@@ -70,22 +68,6 @@ from .database import (
     # Driver documents
     submit_driver_document, get_driver_documents,
     list_pending_documents, list_all_documents, review_driver_document,
-    # Restaurant owner
-    get_restaurant_stats, update_restaurant_info,
-    update_menu_item, create_menu_item, delete_menu_item,
-    update_food_order_status_restaurant,
-    # OTP
-    create_otp, verify_otp,
-    # Favorites
-    add_favorite_place, get_favorite_places, delete_favorite_place,
-    add_favorite_restaurant, get_favorite_restaurants, remove_favorite_restaurant,
-    # Driver withdrawals
-    get_driver_balance, request_withdrawal, get_driver_withdrawals,
-    process_withdrawal, list_pending_withdrawals,
-    # Scheduled
-    list_scheduled_jobs, schedule_food_order,
-    # Geofencing
-    is_within_service_area, validate_ride_geofence,
 )
 
 load_dotenv()
@@ -130,9 +112,6 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
 
 app.add_middleware(SecurityHeadersMiddleware)
 
-from .rate_limit import RateLimitMiddleware
-app.add_middleware(RateLimitMiddleware)
-
 # Legacy auth constants (for backward compatibility)
 EXPECTED_USER = settings.basic_user
 EXPECTED_PASS = settings.basic_pass
@@ -155,7 +134,6 @@ def register(user_data: UserCreate):
         raise HTTPException(400, "Phone number already registered")
     try:
         user = create_user(user_data)
-        notify(user.get("email"), "welcome", name=user.get("name", "there"))
         return create_tokens(user["id"], user["user_type"])
     except ValueError as e:
         raise HTTPException(400, str(e))
@@ -205,41 +183,13 @@ def get_me(current_user: dict = Depends(get_current_user)):
     )
 
 
-# ==================== ROUTING ====================
-
-@app.get("/route")
-async def route_between(
-    pickup_lat: float, pickup_lng: float,
-    drop_lat: float, drop_lng: float,
-):
-    """Get road-distance route between two GPS points via OSRM."""
-    route = await get_route(pickup_lat, pickup_lng, drop_lat, drop_lng)
-    if not route:
-        raise HTTPException(502, "Could not calculate route")
-    corridor = "CBD"
-    price, base, dist = estimate_price_usd(route["distance_km"], corridor)
-    return {
-        **route,
-        "price_usd": price,
-        "base_fare": base,
-        "distance_fare": dist,
-    }
-
-
 # ==================== RIDE ROUTES ====================
 
 @app.post("/quote", response_model=Quote)
 def quote(q: QuoteRequest, _auth=Depends(require_auth)):
-    road_km = q.distance_km
-    # Use OSRM road distance when GPS coords are available
-    if all(getattr(q, a, None) for a in ("pickup_lat", "pickup_lng", "drop_lat", "drop_lng")):
-        road_km_calc, road_eta = get_eta_and_distance(
-            q.pickup_lat, q.pickup_lng, q.drop_lat, q.drop_lng)
-        road_km = road_km_calc or q.distance_km
-
     corridor = classify_corridor(q.pickup_text, q.drop_text)
-    eta = estimate_eta_minutes(road_km, corridor)
-    price, base, dist = estimate_price_usd(road_km, corridor, peak=q.peak)
+    eta = estimate_eta_minutes(q.distance_km, corridor)
+    price, base, dist = estimate_price_usd(q.distance_km, corridor, peak=q.peak)
     return Quote(
         corridor=corridor, eta_min=eta, price_usd=price,
         base_fare=base, distance_fare=dist, total_usd=price,
@@ -800,15 +750,13 @@ def resolve_dispute_route(dispute_id: int, payload: dict,
     if not result:
         raise HTTPException(404, "Dispute not found")
 
+    # Process refund if any
     if refund > 0 and result.get("user_id"):
         from .database import wallet_credit
         wallet_credit(result["user_id"], refund,
                       txn_type="refund",
                       reference_id=str(dispute_id),
                       description=f"Refund for dispute #{dispute_id}")
-
-    notify(result.get("user_email"), "dispute_update",
-           name=result.get("user_name", "Customer"), dispute=result)
 
     return result
 
@@ -865,289 +813,7 @@ def review_document(doc_id: int, payload: dict,
     )
     if not result:
         raise HTTPException(404, "Document not found")
-
-    if result.get("driver_verified"):
-        notify(result.get("driver_email"), "driver_verified",
-               name=result.get("driver_name", "Driver"))
-
     return result
-
-
-@app.post("/admin/email/test")
-def test_email(payload: dict, _auth=Depends(require_auth)):
-    """Admin: send a test email to verify SMTP settings."""
-    to = payload.get("to")
-    if not to:
-        raise HTTPException(400, "Missing 'to' address")
-    from .email_service import send_email, _base_html
-    html = _base_html("Test Email", "<h2>It works!</h2><p>Famba email is configured correctly.</p>")
-    ok = send_email(to, "Famba test email", html)
-    return {"sent": ok, "to": to}
-
-
-# ==================== OTP / PHONE VERIFICATION ====================
-
-@app.post("/otp/send")
-def send_otp(payload: dict):
-    """Send OTP code to a phone number."""
-    phone = payload.get("phone", "").strip()
-    purpose = payload.get("purpose", "verify")
-    if not phone or len(phone) < 9:
-        raise HTTPException(400, "Valid phone number required")
-    result = create_otp(phone, purpose)
-    # In production, send via SMS provider. In dev, return code for testing.
-    if settings.is_development:
-        return {**result, "message": "OTP sent (dev: code included)"}
-    return {"phone": phone, "expires_in": 600,
-            "message": "OTP sent to your phone."}
-
-
-@app.post("/otp/verify")
-def verify_otp_route(payload: dict):
-    """Verify OTP code."""
-    phone = payload.get("phone", "").strip()
-    code = payload.get("code", "").strip()
-    purpose = payload.get("purpose", "verify")
-    if not phone or not code:
-        raise HTTPException(400, "Phone and code required")
-    result = verify_otp(phone, code, purpose)
-    if not result["valid"]:
-        raise HTTPException(400, result["message"])
-    return result
-
-
-# ==================== FAVORITES ====================
-
-@app.get("/favorites/places")
-def list_fav_places(_auth=Depends(require_auth)):
-    """Get user's saved places."""
-    return {"places": get_favorite_places(_auth["id"])}
-
-
-@app.post("/favorites/places")
-def save_fav_place(payload: dict, _auth=Depends(require_auth)):
-    """Save a favorite place (home, work, etc.)."""
-    if not payload.get("name"):
-        raise HTTPException(400, "Place name required")
-    return add_favorite_place(_auth["id"], payload)
-
-
-@app.delete("/favorites/places/{place_id}")
-def delete_fav_place(place_id: int, _auth=Depends(require_auth)):
-    ok = delete_favorite_place(place_id, _auth["id"])
-    if not ok:
-        raise HTTPException(404, "Place not found")
-    return {"ok": True}
-
-
-@app.get("/favorites/restaurants")
-def list_fav_restaurants(_auth=Depends(require_auth)):
-    """Get user's favorite restaurants."""
-    return {"restaurants": get_favorite_restaurants(_auth["id"])}
-
-
-@app.post("/favorites/restaurants")
-def save_fav_restaurant(payload: dict, _auth=Depends(require_auth)):
-    """Save a restaurant as favorite."""
-    rid = payload.get("restaurant_id")
-    if not rid:
-        raise HTTPException(400, "restaurant_id required")
-    return add_favorite_restaurant(_auth["id"], rid)
-
-
-@app.delete("/favorites/restaurants/{fav_id}")
-def delete_fav_restaurant(fav_id: int, _auth=Depends(require_auth)):
-    ok = remove_favorite_restaurant(fav_id, _auth["id"])
-    if not ok:
-        raise HTTPException(404, "Favorite not found")
-    return {"ok": True}
-
-
-# ==================== DRIVER WITHDRAWALS ====================
-
-@app.get("/drivers/{driver_id}/balance")
-def driver_balance(driver_id: str, _auth=Depends(require_auth)):
-    """Get driver's available balance for withdrawal."""
-    return get_driver_balance(driver_id)
-
-
-@app.post("/drivers/{driver_id}/withdraw")
-def driver_withdraw(driver_id: str, payload: dict,
-                    _auth=Depends(require_auth)):
-    """Driver: request a withdrawal."""
-    amount = payload.get("amount", 0)
-    method = payload.get("method", "ecocash")
-    account = payload.get("account_number", "")
-    if not account:
-        raise HTTPException(400, "Account number required")
-    if method not in ("ecocash", "innbucks", "bank_transfer"):
-        raise HTTPException(400, "Method must be ecocash, innbucks, or bank_transfer")
-    result = request_withdrawal(driver_id, amount, method, account)
-    if not result.get("ok"):
-        raise HTTPException(400, result.get("message", "Withdrawal failed"))
-    return result
-
-
-@app.get("/drivers/{driver_id}/withdrawals")
-def driver_withdrawal_history(driver_id: str, _auth=Depends(require_auth)):
-    """Get driver's withdrawal history."""
-    return {"withdrawals": get_driver_withdrawals(driver_id)}
-
-
-@app.get("/admin/withdrawals/pending")
-def admin_pending_withdrawals(_auth=Depends(require_auth)):
-    """Admin: list pending withdrawal requests."""
-    return {"withdrawals": list_pending_withdrawals()}
-
-
-@app.post("/admin/withdrawals/{withdrawal_id}/process")
-def admin_process_withdrawal(withdrawal_id: int, payload: dict,
-                             _auth=Depends(require_auth)):
-    """Admin: approve/reject a withdrawal."""
-    status = payload.get("status")
-    if status not in ("processing", "completed", "failed"):
-        raise HTTPException(400, "Status must be processing, completed, or failed")
-    result = process_withdrawal(withdrawal_id, status,
-                                reference=payload.get("reference"))
-    if not result:
-        raise HTTPException(404, "Withdrawal not found")
-    return result
-
-
-# ==================== GEOFENCING ====================
-
-@app.get("/geofence/check")
-def check_geofence(lat: float, lng: float, _auth=Depends(require_auth)):
-    """Check if a point is within the Harare service area."""
-    return is_within_service_area(lat, lng)
-
-
-@app.post("/geofence/validate-ride")
-def validate_geofence(payload: dict, _auth=Depends(require_auth)):
-    """Validate both pickup and drop-off are within service area."""
-    required = ["pickup_lat", "pickup_lng", "drop_lat", "drop_lng"]
-    if not all(payload.get(k) for k in required):
-        raise HTTPException(400, "All coordinates required")
-    result = validate_ride_geofence(
-        payload["pickup_lat"], payload["pickup_lng"],
-        payload["drop_lat"], payload["drop_lng"])
-    if not result["ok"]:
-        raise HTTPException(400, result["message"])
-    return result
-
-
-@app.get("/geofence/service-area")
-def service_area():
-    """Get the current service area definition."""
-    from .database import HARARE_SERVICE_AREA
-    return HARARE_SERVICE_AREA
-
-
-# ==================== SCHEDULED ORDERS ====================
-
-@app.post("/food-orders/schedule")
-def schedule_food_order_route(payload: dict, _auth=Depends(require_auth)):
-    """Schedule a food order for later delivery."""
-    order_id = payload.get("order_id")
-    scheduled_time = payload.get("scheduled_time")
-    if not order_id or not scheduled_time:
-        raise HTTPException(400, "order_id and scheduled_time required")
-    result = schedule_food_order(order_id, scheduled_time)
-    if not result:
-        raise HTTPException(404, "Order not found")
-    return {"ok": True, "order_id": order_id,
-            "scheduled_time": scheduled_time,
-            "message": "Order scheduled successfully"}
-
-
-@app.get("/jobs/scheduled")
-def get_scheduled_jobs(_auth=Depends(require_auth)):
-    """List all scheduled rides."""
-    return {"jobs": list_scheduled_jobs()}
-
-
-# ==================== RESTAURANT OWNER PORTAL ====================
-
-@app.get("/restaurant-portal/{restaurant_id}/dashboard")
-def restaurant_dashboard(restaurant_id: str, _auth=Depends(require_auth)):
-    """Restaurant owner dashboard stats."""
-    stats = get_restaurant_stats(restaurant_id)
-    if not stats:
-        raise HTTPException(404, "Restaurant not found")
-    return stats
-
-
-@app.get("/restaurant-portal/{restaurant_id}/orders")
-def restaurant_orders(restaurant_id: str, status: str = None,
-                      limit: int = 50, _auth=Depends(require_auth)):
-    """Restaurant owner: list their orders."""
-    return {"orders": list_food_orders(restaurant_id=restaurant_id,
-                                       status=status, limit=limit)}
-
-
-@app.post("/restaurant-portal/{restaurant_id}/orders/{order_id}/status")
-def restaurant_update_order(restaurant_id: str, order_id: str,
-                            payload: dict, _auth=Depends(require_auth)):
-    """Restaurant owner: update order status (confirm, prepare, ready, cancel)."""
-    order = get_food_order(order_id)
-    if not order or order.get("restaurant_id") != restaurant_id:
-        raise HTTPException(404, "Order not found")
-    result = update_food_order_status_restaurant(order_id, payload.get("status", ""))
-    if not result:
-        raise HTTPException(400, "Invalid status transition")
-    return result
-
-
-@app.put("/restaurant-portal/{restaurant_id}/info")
-def restaurant_update_info(restaurant_id: str, payload: dict,
-                           _auth=Depends(require_auth)):
-    """Restaurant owner: update restaurant profile."""
-    result = update_restaurant_info(restaurant_id, payload)
-    if not result:
-        raise HTTPException(404, "Restaurant not found")
-    return result
-
-
-@app.get("/restaurant-portal/{restaurant_id}/menu")
-def restaurant_menu(restaurant_id: str, _auth=Depends(require_auth)):
-    """Restaurant owner: get menu."""
-    return {"menu": get_menu(restaurant_id)}
-
-
-@app.post("/restaurant-portal/{restaurant_id}/menu")
-def restaurant_add_item(restaurant_id: str, payload: dict,
-                        _auth=Depends(require_auth)):
-    """Restaurant owner: add menu item."""
-    if not payload.get("name") or not payload.get("price"):
-        raise HTTPException(400, "Name and price required")
-    payload["restaurant_id"] = restaurant_id
-    return create_menu_item(restaurant_id, payload)
-
-
-@app.put("/restaurant-portal/{restaurant_id}/menu/{item_id}")
-def restaurant_edit_item(restaurant_id: str, item_id: int,
-                         payload: dict, _auth=Depends(require_auth)):
-    """Restaurant owner: update menu item."""
-    result = update_menu_item(item_id, payload)
-    if not result:
-        raise HTTPException(404, "Menu item not found")
-    return result
-
-
-@app.delete("/restaurant-portal/{restaurant_id}/menu/{item_id}")
-def restaurant_delete_item(restaurant_id: str, item_id: int,
-                           _auth=Depends(require_auth)):
-    """Restaurant owner: delete menu item."""
-    ok = delete_menu_item(item_id)
-    if not ok:
-        raise HTTPException(404, "Menu item not found")
-    return {"ok": True}
-
-
-@app.get("/restaurant-portal/{restaurant_id}/ratings")
-def restaurant_ratings(restaurant_id: str, _auth=Depends(require_auth)):
-    """Restaurant owner: view their ratings."""
-    return {"ratings": get_restaurant_ratings(restaurant_id)}
 
 
 # ==================== WEBSOCKET ====================

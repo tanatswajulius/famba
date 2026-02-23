@@ -154,7 +154,6 @@
             <div class="nav-section">Food Delivery</div>
             <a class="nav-item" data-page="restaurants"><i class="ri-store-2-line"></i> Restaurants</a>
             <a class="nav-item" data-page="food-orders"><i class="ri-shopping-bag-line"></i> Food Orders</a>
-            <a class="nav-item" href="restaurant.html" target="_blank" style="color:var(--warning)"><i class="ri-external-link-line"></i> Restaurant Portal ↗</a>
 
             <div class="nav-section">Users & Revenue</div>
             <a class="nav-item" data-page="riders"><i class="ri-user-line"></i> Users</a>
@@ -165,7 +164,6 @@
             <a class="nav-item" data-page="disputes"><i class="ri-shield-line"></i> Disputes</a>
             <a class="nav-item" data-page="verification"><i class="ri-file-check-line"></i> Verification</a>
             <a class="nav-item" data-page="surge"><i class="ri-flashlight-line"></i> Surge Pricing</a>
-            <a class="nav-item" data-page="withdrawals"><i class="ri-bank-card-line"></i> Withdrawals</a>
             <a class="nav-item" data-page="settings"><i class="ri-settings-line"></i> Settings</a>
         </nav>
         <div class="theme-toggle" onclick="toggleTheme()">
@@ -219,7 +217,7 @@
         document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
         const active = document.querySelector(`.nav-item[data-page="${page}"]`);
         if (active) active.classList.add('active');
-        const pages = { dashboard: pageDashboard, rides: pageRides, drivers: pageDrivers, riders: pageRiders, earnings: pageEarnings, promos: pagePromos, restaurants: pageRestaurants, 'food-orders': pageFoodOrders, disputes: pageDisputes, verification: pageVerification, surge: pageSurge, withdrawals: pageWithdrawals, settings: pageSettings };
+        const pages = { dashboard: pageDashboard, rides: pageRides, drivers: pageDrivers, riders: pageRiders, earnings: pageEarnings, promos: pagePromos, restaurants: pageRestaurants, 'food-orders': pageFoodOrders, disputes: pageDisputes, verification: pageVerification, surge: pageSurge, settings: pageSettings };
         (pages[page] || pageDashboard)();
     }
     document.querySelectorAll('.nav-item').forEach(item => {
@@ -477,21 +475,6 @@
     async function toggleSurge(type, val) { await apiPost('/surge/override', {[type]: val}); pageSurge(); }
     async function setManualSurge() { const v = parseFloat(prompt('Multiplier (1.0-2.0):','1.5')); if(v&&v>=1&&v<=2) { await apiPost('/surge/override',{manual_multiplier:v}); pageSurge(); } }
     async function resetSurge() { await apiPost('/surge/override',{rain:false,high_demand:false,manual_multiplier:null}); pageSurge(); }
-
-    // ==================== WITHDRAWALS ====================
-    async function pageWithdrawals() {
-        main().innerHTML = `<div class="header"><h1>Driver Withdrawals</h1><div class="header-actions"><button class="btn btn-primary" onclick="pageWithdrawals()"><i class="ri-refresh-line"></i> Refresh</button></div></div><div class="card"><table><thead><tr><th>ID</th><th>Driver</th><th>Amount</th><th>Method</th><th>Account</th><th>Status</th><th>Requested</th><th>Actions</th></tr></thead><tbody id="wd-body"><tr><td colspan="8" class="loading-row">Loading...</td></tr></tbody></table></div>`;
-        const data = await apiFetch('/admin/withdrawals/pending');
-        const wds = data?.withdrawals || [];
-        const tbody = document.getElementById('wd-body');
-        if (!wds.length) { tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:32px;color:var(--text-secondary)">No pending withdrawals</td></tr>'; return; }
-        tbody.innerHTML = wds.map(w => `<tr><td>#${w.id}</td><td>${w.driver_id}</td><td><strong>$${w.amount.toFixed(2)}</strong></td><td><span class="badge badge-${w.method==='ecocash'?'green':w.method==='innbucks'?'blue':'purple'}">${w.method}</span></td><td>${w.account_number}</td><td><span class="badge badge-yellow">${w.status}</span></td><td>${formatDate(w.created_at)}</td><td><button class="btn btn-sm btn-success" onclick="processWd(${w.id},'completed')">Approve</button> <button class="btn btn-sm btn-danger" onclick="processWd(${w.id},'failed')">Reject</button></td></tr>`).join('');
-    }
-    window.processWd = async function(id, status) {
-        const ref = status === 'completed' ? prompt('Reference number (optional):','') : null;
-        await apiPost(`/admin/withdrawals/${id}/process`, { status, reference: ref });
-        pageWithdrawals();
-    };
 
     // ==================== SETTINGS ====================
     function pageSettings() {
