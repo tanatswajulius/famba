@@ -9,6 +9,10 @@ class QuoteRequest(BaseModel):
     drop_text: str
     distance_km: float
     peak: bool = False
+    pickup_lat: Optional[float] = None
+    pickup_lng: Optional[float] = None
+    drop_lat: Optional[float] = None
+    drop_lng: Optional[float] = None
 
 
 class Quote(BaseModel):
@@ -18,6 +22,7 @@ class Quote(BaseModel):
     base_fare: float
     distance_fare: float
     total_usd: float
+    road_distance_km: Optional[float] = None
 
 
 class CreateJob(BaseModel):
