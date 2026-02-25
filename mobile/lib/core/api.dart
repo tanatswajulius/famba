@@ -413,6 +413,82 @@ class Api {
     return List<Map<String, dynamic>>.from(data['history'] ?? []);
   }
 
+  // ==================== OTP ====================
+
+  static Future<Map<String, dynamic>> sendOtp({required String phone, String purpose = 'verify'}) async {
+    final res = await http.post(Uri.parse('$base/otp/send'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'phone': phone, 'purpose': purpose}));
+    return jsonDecode(res.body);
+  }
+
+  static Future<Map<String, dynamic>> verifyOtp({required String phone, required String code, String purpose = 'verify'}) async {
+    final res = await http.post(Uri.parse('$base/otp/verify'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'phone': phone, 'code': code, 'purpose': purpose}));
+    return jsonDecode(res.body);
+  }
+
+  // ==================== FAVORITES ====================
+
+  static Future<List<Map<String, dynamic>>> getFavoritePlaces() async {
+    final res = await http.get(Uri.parse('$base/favorites/places'), headers: _headers());
+    final data = jsonDecode(res.body);
+    return List<Map<String, dynamic>>.from(data['places'] ?? []);
+  }
+
+  static Future<Map<String, dynamic>> saveFavoritePlace({
+    required String label, required String name,
+    String? address, double? lat, double? lng,
+  }) async {
+    final res = await http.post(Uri.parse('$base/favorites/places'), headers: _headers(),
+      body: jsonEncode({
+        'label': label, 'name': name,
+        if (address != null) 'address': address,
+        if (lat != null) 'lat': lat, if (lng != null) 'lng': lng,
+      }));
+    return jsonDecode(res.body);
+  }
+
+  static Future<void> deleteFavoritePlace(int id) async {
+    await http.delete(Uri.parse('$base/favorites/places/$id'), headers: _headers());
+  }
+
+  static Future<List<Map<String, dynamic>>> getFavoriteRestaurants() async {
+    final res = await http.get(Uri.parse('$base/favorites/restaurants'), headers: _headers());
+    final data = jsonDecode(res.body);
+    return List<Map<String, dynamic>>.from(data['restaurants'] ?? []);
+  }
+
+  static Future<Map<String, dynamic>> saveFavoriteRestaurant(String restaurantId) async {
+    final res = await http.post(Uri.parse('$base/favorites/restaurants'), headers: _headers(),
+      body: jsonEncode({'restaurant_id': restaurantId}));
+    return jsonDecode(res.body);
+  }
+
+  static Future<void> removeFavoriteRestaurant(int favId) async {
+    await http.delete(Uri.parse('$base/favorites/restaurants/$favId'), headers: _headers());
+  }
+
+  // ==================== GEOFENCING ====================
+
+  static Future<Map<String, dynamic>> checkGeofence({required double lat, required double lng}) async {
+    final res = await http.get(Uri.parse('$base/geofence/check?lat=$lat&lng=$lng'), headers: _headers());
+    return jsonDecode(res.body);
+  }
+
+  static Future<Map<String, dynamic>> validateRideGeofence({
+    required double pickupLat, required double pickupLng,
+    required double dropLat, required double dropLng,
+  }) async {
+    final res = await http.post(Uri.parse('$base/geofence/validate-ride'), headers: _headers(),
+      body: jsonEncode({
+        'pickup_lat': pickupLat, 'pickup_lng': pickupLng,
+        'drop_lat': dropLat, 'drop_lng': dropLng,
+      }));
+    return jsonDecode(res.body);
+  }
+
   // ==================== WebSocket URLs ====================
 
   static String get wsBase => base.replaceFirst('http', 'ws');

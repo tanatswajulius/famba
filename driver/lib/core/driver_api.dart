@@ -155,6 +155,33 @@ class DriverApi {
     return List<Map<String, dynamic>>.from(data['messages'] ?? []);
   }
 
+  // ==================== EARNINGS & WITHDRAWALS ====================
+
+  static Future<Map<String, dynamic>> getBalance(String driverId) async {
+    final res = await http.get(Uri.parse('$base/drivers/$driverId/balance'), headers: _headers());
+    return jsonDecode(res.body);
+  }
+
+  static Future<Map<String, dynamic>> requestWithdrawal({
+    required String driverId,
+    required double amount,
+    required String method,
+    required String accountNumber,
+  }) async {
+    final res = await http.post(Uri.parse('$base/drivers/$driverId/withdraw'),
+      headers: _headers(),
+      body: jsonEncode({
+        'amount': amount, 'method': method, 'account_number': accountNumber,
+      }));
+    return jsonDecode(res.body);
+  }
+
+  static Future<List<Map<String, dynamic>>> getWithdrawals(String driverId) async {
+    final res = await http.get(Uri.parse('$base/drivers/$driverId/withdrawals'), headers: _headers());
+    final data = jsonDecode(res.body);
+    return List<Map<String, dynamic>>.from(data['withdrawals'] ?? []);
+  }
+
   // ==================== WebSocket URLs ====================
 
   static String get wsBase => base.replaceFirst('http', 'ws');

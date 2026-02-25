@@ -279,6 +279,62 @@ class WalletTransaction(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
+# ==================== OTP Model ====================
+
+class OTPCode(Base):
+    __tablename__ = "otp_codes"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    phone = Column(String(20), nullable=False, index=True)
+    code = Column(String(6), nullable=False)
+    purpose = Column(String(20), default="verify")  # verify, reset
+    is_used = Column(Boolean, default=False)
+    attempts = Column(Integer, default=0)
+    expires_at = Column(DateTime, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+# ==================== FAVORITES Model ====================
+
+class FavoritePlace(Base):
+    __tablename__ = "favorite_places"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(String(50), ForeignKey("users.id"), nullable=False)
+    label = Column(String(50), nullable=False)  # home, work, gym, custom
+    name = Column(String(150), nullable=False)
+    address = Column(String(255), nullable=True)
+    lat = Column(Float, nullable=True)
+    lng = Column(Float, nullable=True)
+    icon = Column(String(20), default="star")
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class FavoriteRestaurant(Base):
+    __tablename__ = "favorite_restaurants"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(String(50), ForeignKey("users.id"), nullable=False)
+    restaurant_id = Column(String(50), ForeignKey("restaurants.id"), nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+# ==================== DRIVER WITHDRAWAL Model ====================
+
+class DriverWithdrawal(Base):
+    __tablename__ = "driver_withdrawals"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    driver_id = Column(String(50), ForeignKey("drivers.id"), nullable=False)
+    amount = Column(Float, nullable=False)
+    method = Column(String(30), nullable=False)  # ecocash, innbucks, bank_transfer
+    account_number = Column(String(50), nullable=False)
+    status = Column(String(20), default="pending")  # pending, processing, completed, failed
+    reference = Column(String(100), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    processed_at = Column(DateTime, nullable=True)
+
+
 # ==================== DISPUTE Model ====================
 
 class Dispute(Base):
@@ -1716,6 +1772,454 @@ def _doc_to_dict(d: DriverDocument) -> dict:
         "reviewed_at": d.reviewed_at.isoformat() if d.reviewed_at else None,
         "reviewed_by": d.reviewed_by,
     }
+
+
+# ==================== RESTAURANT OWNER FUNCTIONS ====================
+
+def get_restaurant_stats(restaurant_id: str) -> dict:
+    """Get dashboard stats for a restaurant owner."""
+    with get_db() as db:
+        r = db.query(Restaurant).filter(Restaurant.id == restaurant_id).first()
+        if not r:
+            return {}
+        total = db.query(FoodOrder).filter(
+            FoodOrder.restaurant_id == restaurant_id).count()
+        today = datetime.utcnow().replace(hour=0, minute=0, second=0)
+        today_count = db.query(FoodOrder).filter(
+            FoodOrder.restaurant_id == restaurant_id,
+            FoodOrder.created_at >= today).count()
+        revenue_rows = db.query(FoodOrder).filter(
+            FoodOrder.restaurant_id == restaurant_id,
+            FoodOrder.status == "delivered").all()
+        total_revenue = sum(o.total or 0 for o in revenue_rows)
+        today_rev = sum(o.total or 0 for o in revenue_rows if o.created_at >= today)
+        active = db.query(FoodOrder).filter(
+            FoodOrder.restaurant_id == restaurant_id,
+            FoodOrder.status.in_(["placed", "confirmed", "preparing", "ready"])).count()
+        return {
+            "restaurant_id": restaurant_id,
+            "name": r.name,
+            "total_orders": total,
+            "today_orders": today_count,
+            "active_orders": active,
+            "total_revenue": round(total_revenue, 2),
+            "today_revenue": round(today_rev, 2),
+            "rating": r.rating,
+            "is_open": r.is_open,
+        }
+
+
+def update_restaurant_info(restaurant_id: str, data: dict) -> Optional[dict]:
+    """Restaurant owner updates their restaurant info."""
+    with get_db() as db:
+        r = db.query(Restaurant).filter(Restaurant.id == restaurant_id).first()
+        if not r:
+            return None
+        allowed = ["name", "description", "address", "phone", "opening_time",
+                    "closing_time", "is_open", "delivery_fee", "min_order",
+                    "avg_prep_time_min", "cuisine", "image_url"]
+        for k in allowed:
+            if k in data:
+                setattr(r, k, data[k])
+        db.commit()
+        db.refresh(r)
+        return _restaurant_to_dict(r)
+
+
+def update_menu_item(item_id: int, data: dict) -> Optional[dict]:
+    """Update a menu item."""
+    with get_db() as db:
+        item = db.query(MenuItem).filter(MenuItem.id == item_id).first()
+        if not item:
+            return None
+        for k in ["name", "description", "price", "image_url", "category",
+                   "is_available", "is_popular"]:
+            if k in data:
+                setattr(item, k, data[k])
+        db.commit()
+        db.refresh(item)
+        return _menu_item_to_dict(item)
+
+
+def create_menu_item(restaurant_id: str, data: dict) -> dict:
+    """Add a new menu item."""
+    with get_db() as db:
+        item = MenuItem(
+            restaurant_id=restaurant_id,
+            name=data["name"],
+            description=data.get("description", ""),
+            price=data["price"],
+            image_url=data.get("image_url", ""),
+            category=data.get("category", "main"),
+            is_available=data.get("is_available", True),
+        )
+        db.add(item)
+        db.commit()
+        db.refresh(item)
+        return _menu_item_to_dict(item)
+
+
+def delete_menu_item(item_id: int) -> bool:
+    """Delete a menu item."""
+    with get_db() as db:
+        item = db.query(MenuItem).filter(MenuItem.id == item_id).first()
+        if not item:
+            return False
+        db.delete(item)
+        db.commit()
+        return True
+
+
+def update_food_order_status_restaurant(order_id: str, status: str) -> Optional[dict]:
+    """Restaurant owner updates food order status."""
+    valid = ["confirmed", "preparing", "ready", "cancelled"]
+    if status not in valid:
+        return None
+    with get_db() as db:
+        o = db.query(FoodOrder).filter(FoodOrder.id == order_id).first()
+        if not o:
+            return None
+        o.status = status
+        db.commit()
+        db.refresh(o)
+        return _food_order_to_dict(o)
+
+
+# ==================== OTP CRUD ====================
+
+def create_otp(phone: str, purpose: str = "verify") -> dict:
+    """Generate and store a 6-digit OTP code. Valid for 10 minutes."""
+    code = "".join(random.choices(string.digits, k=6))
+    expires = datetime.utcnow() + __import__("datetime").timedelta(minutes=10)
+    with get_db() as db:
+        # Invalidate previous unused codes for this phone
+        db.query(OTPCode).filter(
+            OTPCode.phone == phone,
+            OTPCode.purpose == purpose,
+            OTPCode.is_used == False,
+        ).update({"is_used": True})
+
+        otp = OTPCode(phone=phone, code=code, purpose=purpose, expires_at=expires)
+        db.add(otp)
+        db.commit()
+        return {"phone": phone, "code": code, "expires_in": 600}
+
+
+def verify_otp(phone: str, code: str, purpose: str = "verify") -> dict:
+    """Verify an OTP code. Max 5 attempts."""
+    with get_db() as db:
+        otp = db.query(OTPCode).filter(
+            OTPCode.phone == phone,
+            OTPCode.purpose == purpose,
+            OTPCode.is_used == False,
+        ).order_by(OTPCode.created_at.desc()).first()
+
+        if not otp:
+            return {"valid": False, "message": "No OTP found. Request a new one."}
+        if otp.attempts >= 5:
+            otp.is_used = True
+            db.commit()
+            return {"valid": False, "message": "Too many attempts. Request a new OTP."}
+        if datetime.utcnow() > otp.expires_at:
+            otp.is_used = True
+            db.commit()
+            return {"valid": False, "message": "OTP expired. Request a new one."}
+
+        otp.attempts += 1
+        if otp.code != code:
+            db.commit()
+            remaining = 5 - otp.attempts
+            return {"valid": False, "message": f"Wrong code. {remaining} attempts left."}
+
+        otp.is_used = True
+        db.commit()
+
+        # Mark user as verified
+        user = db.query(User).filter(User.phone == phone).first()
+        if user:
+            user.is_verified = True
+            db.commit()
+
+        return {"valid": True, "message": "Phone verified successfully."}
+
+
+# ==================== FAVORITES CRUD ====================
+
+def add_favorite_place(user_id: str, data: dict) -> dict:
+    """Save a favorite place (home, work, etc.)."""
+    with get_db() as db:
+        # Upsert: if same label exists, update it
+        existing = db.query(FavoritePlace).filter(
+            FavoritePlace.user_id == user_id,
+            FavoritePlace.label == data.get("label", "custom"),
+        ).first()
+        if existing:
+            existing.name = data.get("name", existing.name)
+            existing.address = data.get("address", existing.address)
+            existing.lat = data.get("lat", existing.lat)
+            existing.lng = data.get("lng", existing.lng)
+            existing.icon = data.get("icon", existing.icon)
+            db.commit()
+            db.refresh(existing)
+            return _fav_place_to_dict(existing)
+
+        fav = FavoritePlace(
+            user_id=user_id,
+            label=data.get("label", "custom"),
+            name=data["name"],
+            address=data.get("address", ""),
+            lat=data.get("lat"),
+            lng=data.get("lng"),
+            icon=data.get("icon", "star"),
+        )
+        db.add(fav)
+        db.commit()
+        db.refresh(fav)
+        return _fav_place_to_dict(fav)
+
+
+def get_favorite_places(user_id: str) -> List[dict]:
+    with get_db() as db:
+        places = db.query(FavoritePlace).filter(
+            FavoritePlace.user_id == user_id
+        ).order_by(FavoritePlace.created_at).all()
+        return [_fav_place_to_dict(p) for p in places]
+
+
+def delete_favorite_place(place_id: int, user_id: str) -> bool:
+    with get_db() as db:
+        p = db.query(FavoritePlace).filter(
+            FavoritePlace.id == place_id,
+            FavoritePlace.user_id == user_id,
+        ).first()
+        if not p:
+            return False
+        db.delete(p)
+        db.commit()
+        return True
+
+
+def add_favorite_restaurant(user_id: str, restaurant_id: str) -> dict:
+    with get_db() as db:
+        existing = db.query(FavoriteRestaurant).filter(
+            FavoriteRestaurant.user_id == user_id,
+            FavoriteRestaurant.restaurant_id == restaurant_id,
+        ).first()
+        if existing:
+            return {"ok": True, "already_saved": True}
+        fav = FavoriteRestaurant(user_id=user_id, restaurant_id=restaurant_id)
+        db.add(fav)
+        db.commit()
+        return {"ok": True, "id": fav.id}
+
+
+def get_favorite_restaurants(user_id: str) -> List[dict]:
+    with get_db() as db:
+        favs = db.query(FavoriteRestaurant).filter(
+            FavoriteRestaurant.user_id == user_id
+        ).all()
+        result = []
+        for f in favs:
+            r = db.query(Restaurant).filter(Restaurant.id == f.restaurant_id).first()
+            if r:
+                d = _restaurant_to_dict(r)
+                d["favorite_id"] = f.id
+                result.append(d)
+        return result
+
+
+def remove_favorite_restaurant(fav_id: int, user_id: str) -> bool:
+    with get_db() as db:
+        f = db.query(FavoriteRestaurant).filter(
+            FavoriteRestaurant.id == fav_id,
+            FavoriteRestaurant.user_id == user_id,
+        ).first()
+        if not f:
+            return False
+        db.delete(f)
+        db.commit()
+        return True
+
+
+def _fav_place_to_dict(p: FavoritePlace) -> dict:
+    return {
+        "id": p.id, "user_id": p.user_id, "label": p.label,
+        "name": p.name, "address": p.address,
+        "lat": p.lat, "lng": p.lng, "icon": p.icon,
+        "created_at": p.created_at.isoformat() if p.created_at else None,
+    }
+
+
+# ==================== DRIVER WITHDRAWAL CRUD ====================
+
+def get_driver_balance(driver_id: str) -> dict:
+    """Get available balance for withdrawal."""
+    with get_db() as db:
+        earnings = db.query(func.sum(DriverEarning.net_amount)).filter(
+            DriverEarning.driver_id == driver_id
+        ).scalar() or 0.0
+        withdrawn = db.query(func.sum(DriverWithdrawal.amount)).filter(
+            DriverWithdrawal.driver_id == driver_id,
+            DriverWithdrawal.status.in_(["completed", "processing", "pending"]),
+        ).scalar() or 0.0
+        available = round(earnings - withdrawn, 2)
+        return {
+            "driver_id": driver_id,
+            "total_earned": round(earnings, 2),
+            "total_withdrawn": round(withdrawn, 2),
+            "available_balance": max(0, available),
+        }
+
+
+def request_withdrawal(driver_id: str, amount: float, method: str,
+                       account_number: str) -> dict:
+    """Driver requests a withdrawal."""
+    balance = get_driver_balance(driver_id)
+    if amount > balance["available_balance"]:
+        return {"ok": False, "message": "Insufficient balance",
+                "available": balance["available_balance"]}
+    if amount < 1.0:
+        return {"ok": False, "message": "Minimum withdrawal is $1.00"}
+
+    with get_db() as db:
+        w = DriverWithdrawal(
+            driver_id=driver_id, amount=amount,
+            method=method, account_number=account_number,
+        )
+        db.add(w)
+        db.commit()
+        db.refresh(w)
+        return {
+            "ok": True, "id": w.id, "amount": w.amount,
+            "method": w.method, "status": w.status,
+            "message": f"Withdrawal of ${amount:.2f} to {method} requested.",
+        }
+
+
+def get_driver_withdrawals(driver_id: str, limit: int = 50) -> List[dict]:
+    with get_db() as db:
+        ws = db.query(DriverWithdrawal).filter(
+            DriverWithdrawal.driver_id == driver_id
+        ).order_by(DriverWithdrawal.created_at.desc()).limit(limit).all()
+        return [_withdrawal_to_dict(w) for w in ws]
+
+
+def process_withdrawal(withdrawal_id: int, status: str,
+                       reference: str = None) -> Optional[dict]:
+    """Admin processes a withdrawal request."""
+    with get_db() as db:
+        w = db.query(DriverWithdrawal).filter(
+            DriverWithdrawal.id == withdrawal_id).first()
+        if not w:
+            return None
+        w.status = status
+        w.reference = reference
+        if status in ("completed", "failed"):
+            w.processed_at = datetime.utcnow()
+        db.commit()
+        db.refresh(w)
+        return _withdrawal_to_dict(w)
+
+
+def list_pending_withdrawals() -> List[dict]:
+    with get_db() as db:
+        ws = db.query(DriverWithdrawal).filter(
+            DriverWithdrawal.status == "pending"
+        ).order_by(DriverWithdrawal.created_at).all()
+        return [_withdrawal_to_dict(w) for w in ws]
+
+
+def _withdrawal_to_dict(w: DriverWithdrawal) -> dict:
+    return {
+        "id": w.id, "driver_id": w.driver_id,
+        "amount": w.amount, "method": w.method,
+        "account_number": w.account_number,
+        "status": w.status, "reference": w.reference,
+        "created_at": w.created_at.isoformat() if w.created_at else None,
+        "processed_at": w.processed_at.isoformat() if w.processed_at else None,
+    }
+
+
+# ==================== SCHEDULED ORDERS ====================
+
+def list_scheduled_jobs(status: str = "scheduled", limit: int = 50) -> List[dict]:
+    """List scheduled rides."""
+    with get_db() as db:
+        jobs = db.query(Job).filter(
+            Job.status == status,
+            Job.scheduled_time.isnot(None),
+        ).order_by(Job.scheduled_time).limit(limit).all()
+        return [_job_to_dict(j) for j in jobs]
+
+
+def schedule_food_order(order_id: str, scheduled_time: str) -> Optional[dict]:
+    """Schedule a food order for later."""
+    with get_db() as db:
+        o = db.query(FoodOrder).filter(FoodOrder.id == order_id).first()
+        if not o:
+            return None
+        o.status = "scheduled"
+        db.commit()
+        db.refresh(o)
+        return _food_order_to_dict(o)
+
+
+# ==================== GEOFENCING ====================
+
+HARARE_SERVICE_AREA = {
+    "center_lat": -17.8292,
+    "center_lng": 31.0522,
+    "radius_km": 35.0,
+    "name": "Greater Harare",
+    "polygon": [
+        (-17.65, 30.85), (-17.65, 31.25),
+        (-18.05, 31.25), (-18.05, 30.85),
+    ],
+}
+
+import math as _math
+
+def _haversine(lat1, lng1, lat2, lng2) -> float:
+    """Distance between two points in km."""
+    R = 6371.0
+    dlat = _math.radians(lat2 - lat1)
+    dlng = _math.radians(lng2 - lng1)
+    a = (_math.sin(dlat / 2) ** 2 +
+         _math.cos(_math.radians(lat1)) * _math.cos(_math.radians(lat2)) *
+         _math.sin(dlng / 2) ** 2)
+    return R * 2 * _math.atan2(_math.sqrt(a), _math.sqrt(1 - a))
+
+
+def is_within_service_area(lat: float, lng: float) -> dict:
+    """Check if a GPS point is within the Harare service area."""
+    dist = _haversine(
+        HARARE_SERVICE_AREA["center_lat"],
+        HARARE_SERVICE_AREA["center_lng"],
+        lat, lng
+    )
+    inside = dist <= HARARE_SERVICE_AREA["radius_km"]
+    return {
+        "inside": inside,
+        "distance_from_center_km": round(dist, 2),
+        "service_area": HARARE_SERVICE_AREA["name"],
+        "max_radius_km": HARARE_SERVICE_AREA["radius_km"],
+    }
+
+
+def validate_ride_geofence(pickup_lat: float, pickup_lng: float,
+                           drop_lat: float, drop_lng: float) -> dict:
+    """Validate both pickup and dropoff are within service area."""
+    pickup_check = is_within_service_area(pickup_lat, pickup_lng)
+    drop_check = is_within_service_area(drop_lat, drop_lng)
+
+    if not pickup_check["inside"]:
+        return {"ok": False, "message": "Pickup location is outside our service area.",
+                "pickup": pickup_check, "drop": drop_check}
+    if not drop_check["inside"]:
+        return {"ok": False, "message": "Drop-off location is outside our service area.",
+                "pickup": pickup_check, "drop": drop_check}
+    return {"ok": True, "message": "Both locations are within service area.",
+            "pickup": pickup_check, "drop": drop_check}
 
 
 # Initialize on import
