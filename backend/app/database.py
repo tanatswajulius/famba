@@ -43,6 +43,7 @@ class User(Base):
     email = Column(String(100), unique=True, nullable=True)
     password_hash = Column(String(255), nullable=False)
     user_type = Column(String(20), default="rider")  # rider, driver, admin
+    role = Column(String(30), default="user")  # user, restaurant_owner, support, admin, super_admin
     is_verified = Column(Boolean, default=False)
     is_active = Column(Boolean, default=True)
     profile_image = Column(String(255), nullable=True)
@@ -591,8 +592,18 @@ def _seed_initial_data(db: Session):
 
 
 # Counters for generating IDs
-_job_counter = 1000
-_order_counter = 5000
+def _init_counters():
+    try:
+        with get_db() as db:
+            max_job = db.execute(__import__("sqlalchemy").text(
+                "SELECT MAX(CAST(SUBSTR(id, 2) AS INTEGER)) FROM jobs")).scalar()
+            max_order = db.execute(__import__("sqlalchemy").text(
+                "SELECT MAX(CAST(SUBSTR(id, 3) AS INTEGER)) FROM food_orders")).scalar()
+            return (max_job or 1000) + 1, (max_order or 5000) + 1
+    except Exception:
+        return 1000, 5000
+
+_job_counter, _order_counter = _init_counters()
 
 
 # ==================== USER DB Operations (for auth persistence) ====================
@@ -662,12 +673,61 @@ def _user_to_dict(user: User) -> dict:
         "email": user.email,
         "password_hash": user.password_hash,
         "user_type": user.user_type,
+        "role": user.role or "user",
         "is_verified": user.is_verified,
         "is_active": user.is_active,
         "wallet_balance": user.wallet_balance,
         "referral_code": user.referral_code,
         "created_at": user.created_at.isoformat() if user.created_at else None,
     }
+
+
+ROLE_PERMISSIONS = {
+    "super_admin": {"all"},
+    "admin": {
+        "view_dashboard", "manage_drivers", "manage_riders", "manage_orders",
+        "manage_restaurants", "manage_promos", "manage_disputes",
+        "manage_documents", "manage_withdrawals", "manage_surge",
+        "view_earnings", "view_analytics",
+    },
+    "support": {
+        "view_dashboard", "manage_disputes", "manage_orders",
+        "view_earnings", "view_analytics",
+    },
+    "restaurant_owner": {
+        "manage_own_restaurant", "view_own_orders", "view_own_ratings",
+    },
+    "user": set(),
+}
+
+
+def check_permission(role: str, permission: str) -> bool:
+    perms = ROLE_PERMISSIONS.get(role, set())
+    return "all" in perms or permission in perms
+
+
+def set_user_role(user_id: str, role: str) -> Optional[dict]:
+    valid_roles = list(ROLE_PERMISSIONS.keys())
+    if role not in valid_roles:
+        return None
+    with get_db() as db:
+        user = db.query(User).filter(User.id == user_id).first()
+        if not user:
+            return None
+        user.role = role
+        if role in ("admin", "super_admin"):
+            user.user_type = "admin"
+        db.commit()
+        db.refresh(user)
+        return _user_to_dict(user)
+
+
+def list_admin_users() -> List[dict]:
+    with get_db() as db:
+        users = db.query(User).filter(
+            User.role.in_(["admin", "super_admin", "support"])
+        ).order_by(User.created_at.desc()).all()
+        return [_user_to_dict(u) for u in users]
 
 
 # ==================== JOB CRUD Operations ====================

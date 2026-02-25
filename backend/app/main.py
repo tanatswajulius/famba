@@ -86,6 +86,9 @@ from .database import (
     list_scheduled_jobs, schedule_food_order,
     # Geofencing
     is_within_service_area, validate_ride_geofence,
+    # Admin roles
+    check_permission, set_user_role, list_admin_users,
+    ROLE_PERMISSIONS, db_update_user,
 )
 
 load_dotenv()
@@ -199,6 +202,7 @@ def get_me(current_user: dict = Depends(get_current_user)):
         phone=current_user["phone"],
         name=current_user["name"],
         user_type=current_user.get("user_type", "rider"),
+        role=current_user.get("role", "user"),
         is_verified=current_user.get("is_verified", False),
         wallet_balance=current_user.get("wallet_balance", 0.0),
         created_at=current_user.get("created_at", ""),
@@ -1064,6 +1068,280 @@ def schedule_food_order_route(payload: dict, _auth=Depends(require_auth)):
 def get_scheduled_jobs(_auth=Depends(require_auth)):
     """List all scheduled rides."""
     return {"jobs": list_scheduled_jobs()}
+
+
+# ==================== ADMIN ROLES & PERMISSIONS ====================
+
+@app.get("/admin/roles")
+def get_roles(_auth=Depends(require_auth)):
+    """List available roles and their permissions."""
+    return {role: list(perms) for role, perms in ROLE_PERMISSIONS.items()}
+
+
+@app.get("/admin/users")
+def admin_list_users(limit: int = 100, _auth=Depends(require_auth)):
+    """Admin: list all users."""
+    return {"users": db_list_users(limit)}
+
+
+@app.get("/admin/staff")
+def admin_staff(_auth=Depends(require_auth)):
+    """Admin: list admin/support staff."""
+    return {"staff": list_admin_users()}
+
+
+@app.post("/admin/users/{user_id}/role")
+def admin_set_role(user_id: str, payload: dict, _auth=Depends(require_auth)):
+    """Super admin: set a user's role."""
+    role = payload.get("role", "")
+    if role not in ROLE_PERMISSIONS:
+        raise HTTPException(400, f"Invalid role. Must be one of: {list(ROLE_PERMISSIONS.keys())}")
+    result = set_user_role(user_id, role)
+    if not result:
+        raise HTTPException(404, "User not found")
+    return result
+
+
+@app.post("/admin/users/{user_id}/deactivate")
+def admin_deactivate_user(user_id: str, _auth=Depends(require_auth)):
+    """Admin: deactivate a user account."""
+    result = db_update_user(user_id, is_active=False)
+    if not result:
+        raise HTTPException(404, "User not found")
+    return {"ok": True, "user_id": user_id, "is_active": False}
+
+
+@app.post("/admin/users/{user_id}/activate")
+def admin_activate_user(user_id: str, _auth=Depends(require_auth)):
+    """Admin: reactivate a user account."""
+    result = db_update_user(user_id, is_active=True)
+    if not result:
+        raise HTTPException(404, "User not found")
+    return {"ok": True, "user_id": user_id, "is_active": True}
+
+
+# ==================== APP VERSION / FORCE UPDATE ====================
+
+APP_VERSIONS = {
+    "rider_android": {"min": "1.0.0", "latest": "1.2.0", "force_update": False},
+    "rider_ios": {"min": "1.0.0", "latest": "1.2.0", "force_update": False},
+    "driver_android": {"min": "1.0.0", "latest": "1.1.0", "force_update": False},
+    "driver_ios": {"min": "1.0.0", "latest": "1.1.0", "force_update": False},
+}
+
+
+@app.get("/app/version")
+def check_app_version(platform: str = "rider_android", current: str = "1.0.0"):
+    """Check if the app needs updating."""
+    config = APP_VERSIONS.get(platform)
+    if not config:
+        return {"update_required": False, "force": False}
+
+    def _parse(v):
+        return tuple(int(x) for x in v.split("."))
+
+    cur = _parse(current)
+    min_v = _parse(config["min"])
+    latest_v = _parse(config["latest"])
+
+    force = cur < min_v
+    update_available = cur < latest_v
+    return {
+        "update_required": force,
+        "update_available": update_available,
+        "force": force or config["force_update"],
+        "current_version": current,
+        "latest_version": config["latest"],
+        "min_version": config["min"],
+        "message": "Please update to continue using Famba." if force else (
+            "A new version is available." if update_available else "You're up to date."
+        ),
+    }
+
+
+@app.post("/admin/app/version")
+def set_app_version(payload: dict, _auth=Depends(require_auth)):
+    """Admin: update version requirements."""
+    platform = payload.get("platform")
+    if platform not in APP_VERSIONS:
+        raise HTTPException(400, f"Invalid platform. Must be one of: {list(APP_VERSIONS.keys())}")
+    if "min" in payload:
+        APP_VERSIONS[platform]["min"] = payload["min"]
+    if "latest" in payload:
+        APP_VERSIONS[platform]["latest"] = payload["latest"]
+    if "force_update" in payload:
+        APP_VERSIONS[platform]["force_update"] = payload["force_update"]
+    return APP_VERSIONS[platform]
+
+
+# ==================== ANALYTICS EXPORT ====================
+
+@app.get("/admin/export/rides")
+def export_rides(_auth=Depends(require_auth)):
+    """Export rides data as CSV."""
+    from io import StringIO
+    import csv
+    jobs = list_jobs(limit=1000)
+    output = StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["id", "status", "pickup", "drop", "distance_km", "fare_usd",
+                      "driver_id", "payment_method", "created_at"])
+    for j in jobs:
+        writer.writerow([j.get("id"), j.get("status"), j.get("pickup_text"),
+                         j.get("drop_text"), j.get("distance_km"), j.get("fare_usd"),
+                         j.get("driver_id"), j.get("payment_method"), j.get("created_at")])
+    from starlette.responses import StreamingResponse
+    output.seek(0)
+    return StreamingResponse(
+        iter([output.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=famba_rides.csv"},
+    )
+
+
+@app.get("/admin/export/food-orders")
+def export_food_orders(_auth=Depends(require_auth)):
+    """Export food orders as CSV."""
+    from io import StringIO
+    import csv
+    orders = list_food_orders(limit=1000)
+    output = StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["id", "restaurant_id", "status", "subtotal", "delivery_fee",
+                      "total", "delivery_address", "payment_method", "created_at"])
+    for o in orders:
+        writer.writerow([o.get("id"), o.get("restaurant_id"), o.get("status"),
+                         o.get("subtotal"), o.get("delivery_fee"), o.get("total"),
+                         o.get("delivery_address"), o.get("payment_method"), o.get("created_at")])
+    from starlette.responses import StreamingResponse
+    output.seek(0)
+    return StreamingResponse(
+        iter([output.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=famba_food_orders.csv"},
+    )
+
+
+@app.get("/admin/export/drivers")
+def export_drivers(_auth=Depends(require_auth)):
+    """Export drivers data as CSV."""
+    from io import StringIO
+    import csv
+    drivers = get_all_drivers()
+    output = StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["id", "name", "phone", "rating", "total_trips",
+                      "is_online", "is_verified", "created_at"])
+    for d in drivers:
+        writer.writerow([d.get("id"), d.get("name"), d.get("phone"),
+                         d.get("rating"), d.get("total_trips"),
+                         d.get("is_online"), d.get("is_verified"), d.get("created_at")])
+    from starlette.responses import StreamingResponse
+    output.seek(0)
+    return StreamingResponse(
+        iter([output.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=famba_drivers.csv"},
+    )
+
+
+@app.get("/admin/export/users")
+def export_users(_auth=Depends(require_auth)):
+    """Export users data as CSV."""
+    from io import StringIO
+    import csv
+    users = db_list_users(1000)
+    output = StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["id", "phone", "name", "user_type", "role",
+                      "is_verified", "wallet_balance", "created_at"])
+    for u in users:
+        writer.writerow([u.get("id"), u.get("phone"), u.get("name"),
+                         u.get("user_type"), u.get("role"),
+                         u.get("is_verified"), u.get("wallet_balance"), u.get("created_at")])
+    from starlette.responses import StreamingResponse
+    output.seek(0)
+    return StreamingResponse(
+        iter([output.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=famba_users.csv"},
+    )
+
+
+# ==================== RECEIPT GENERATION ====================
+
+@app.get("/receipts/ride/{job_id}")
+def ride_receipt(job_id: str, _auth=Depends(require_auth)):
+    """Generate HTML receipt for a ride."""
+    job = get_job(job_id)
+    if not job:
+        raise HTTPException(404, "Job not found")
+    from .email_service import _base_html
+    body = f"""
+    <h2>Ride Receipt</h2>
+    <div class="detail"><table>
+      <tr><td class="label">Receipt #</td><td class="value">{job['id']}</td></tr>
+      <tr><td class="label">From</td><td class="value">{job.get('pickup_text','')}</td></tr>
+      <tr><td class="label">To</td><td class="value">{job.get('drop_text','')}</td></tr>
+      <tr><td class="label">Distance</td><td class="value">{job.get('distance_km',0):.1f} km</td></tr>
+      <tr><td class="label">Payment</td><td class="value">{job.get('payment_method','cash')}</td></tr>
+      <tr><td class="label">Status</td><td class="value">{job.get('status','')}</td></tr>
+      <tr><td class="label">Date</td><td class="value">{job.get('created_at','')}</td></tr>
+    </table></div>
+    <div style="text-align:center;margin-top:16px;padding:16px;background:#f9f9f9;border-radius:8px">
+      <div style="font-size:14px;color:#888">Total Fare</div>
+      <div style="font-size:36px;font-weight:700;color:#ff6600">${job.get('fare_usd',0):.2f}</div>
+    </div>
+    <p style="margin-top:16px;font-size:12px;color:#888;text-align:center">
+      Thank you for riding with Famba!
+    </p>
+    """
+    html = _base_html(f"Receipt #{job['id']}", body)
+    from starlette.responses import HTMLResponse
+    return HTMLResponse(content=html)
+
+
+@app.get("/receipts/food/{order_id}")
+def food_receipt(order_id: str, _auth=Depends(require_auth)):
+    """Generate HTML receipt for a food order."""
+    order = get_food_order(order_id)
+    if not order:
+        raise HTTPException(404, "Order not found")
+    items = order.get("items", [])
+    items_html = "".join(
+        f"<tr><td>{it.get('name','')}</td><td style='text-align:center'>x{it.get('qty',1)}</td>"
+        f"<td style='text-align:right'>${it.get('price',0):.2f}</td></tr>"
+        for it in items
+    )
+    from .email_service import _base_html
+    body = f"""
+    <h2>Food Order Receipt</h2>
+    <div class="detail"><table>
+      <tr><td class="label">Order #</td><td class="value">{order['id']}</td></tr>
+      <tr><td class="label">Restaurant</td><td class="value">{order.get('restaurant_id','')}</td></tr>
+      <tr><td class="label">Delivery</td><td class="value">{order.get('delivery_address','')}</td></tr>
+      <tr><td class="label">Payment</td><td class="value">{order.get('payment_method','cash')}</td></tr>
+      <tr><td class="label">Date</td><td class="value">{order.get('created_at','')}</td></tr>
+    </table></div>
+    <table style="width:100%;margin:16px 0;border-collapse:collapse">
+      <thead><tr style="border-bottom:2px solid #eee">
+        <th style="text-align:left;padding:8px">Item</th>
+        <th style="text-align:center;padding:8px">Qty</th>
+        <th style="text-align:right;padding:8px">Price</th>
+      </tr></thead>
+      <tbody>{items_html}</tbody>
+    </table>
+    <div style="text-align:right;padding:8px;border-top:2px solid #eee">
+      <div>Subtotal: <strong>${order.get('subtotal',0):.2f}</strong></div>
+      <div>Delivery: <strong>${order.get('delivery_fee',0):.2f}</strong></div>
+      <div style="font-size:20px;color:#ff6600;margin-top:4px">
+        Total: <strong>${order.get('total',0):.2f}</strong>
+      </div>
+    </div>
+    """
+    html = _base_html(f"Order #{order['id']}", body)
+    from starlette.responses import HTMLResponse
+    return HTMLResponse(content=html)
 
 
 # ==================== RESTAURANT OWNER PORTAL ====================

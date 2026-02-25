@@ -182,6 +182,14 @@ class DriverApi {
     return List<Map<String, dynamic>>.from(data['withdrawals'] ?? []);
   }
 
+  // ==================== APP VERSION ====================
+
+  static Future<Map<String, dynamic>> checkAppVersion({required String currentVersion}) async {
+    final res = await http.get(
+      Uri.parse('$base/app/version?platform=driver_android&current=$currentVersion'));
+    return jsonDecode(res.body);
+  }
+
   // ==================== WebSocket URLs ====================
 
   static String get wsBase => base.replaceFirst('http', 'ws');
