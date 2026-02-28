@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Famba — Live Demo</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f8faf7; color: #1a1a1a; min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 32px; }
+  .logo { font-size: 48px; font-weight: 800; letter-spacing: -2px; margin-bottom: 8px; }
+  .logo span { color: #8BD17C; }
+  .tagline { color: #6b7280; font-size: 18px; margin-bottom: 48px; text-align: center; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 20px; max-width: 900px; width: 100%; }
+  .card { background: #fff; border-radius: 16px; padding: 32px; border: 1px solid #e5e7eb; transition: all 0.2s; text-decoration: none; color: inherit; }
+  .card:hover { transform: translateY(-4px); box-shadow: 0 12px 40px rgba(0,0,0,0.08); border-color: #8BD17C; }
+  .card-icon { width: 48px; height: 48px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 24px; margin-bottom: 16px; }
+  .card h2 { font-size: 20px; font-weight: 700; margin-bottom: 8px; letter-spacing: -0.5px; }
+  .card p { font-size: 14px; color: #6b7280; line-height: 1.5; }
+  .rider .card-icon { background: #e8f5e3; }
+  .driver .card-icon { background: #d4edda; }
+  .admin .card-icon { background: #2d3436; color: #fff; }
+  .restaurant .card-icon { background: #fff3e0; }
+  .badge { display: inline-block; margin-top: 12px; font-size: 11px; font-weight: 600; padding: 4px 10px; border-radius: 20px; background: #f0fdf4; color: #16a34a; }
+  footer { margin-top: 48px; font-size: 13px; color: #9ca3af; }
+  footer a { color: #8BD17C; text-decoration: none; }
+</style>
+</head>
+<body>
+  <div class="logo"><span>Famba</span></div>
+  <div class="tagline">Motorcycle Rides & Food Delivery in Harare, Zimbabwe</div>
+  <div class="grid">
+    <a class="card rider" href="rider/">
+      <div class="card-icon">🏍️</div>
+      <h2>Rider App</h2>
+      <p>Book motorcycle rides, order food, track deliveries, manage your wallet — the full rider experience.</p>
+      <span class="badge">Flutter Web</span>
+    </a>
+    <a class="card driver" href="driver/">
+      <div class="card-icon">🚀</div>
+      <h2>Driver App</h2>
+      <p>Go online, accept ride requests, navigate to pickups, manage earnings and withdrawals.</p>
+      <span class="badge">Flutter Web</span>
+    </a>
+    <a class="card admin" href="admin/">
+      <div class="card-icon">⚙️</div>
+      <h2>Admin Dashboard</h2>
+      <p>Analytics, driver management, disputes, surge pricing, exports, staff roles — full platform control.</p>
+      <span class="badge">Web App</span>
+    </a>
+    <a class="card restaurant" href="restaurant/">
+      <div class="card-icon">🍽️</div>
+      <h2>Restaurant Portal</h2>
+      <p>Manage orders, update menus, view ratings, and configure restaurant settings.</p>
+      <span class="badge">Web App</span>
+    </a>
+  </div>
+  <footer>
+    Built with FastAPI, Flutter & SQLAlchemy &mdash; <a href="https://github.com/tanatswajulius/famba">View on GitHub</a>
+  </footer>
+</body>
+</html>
