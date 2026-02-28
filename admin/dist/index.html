@@ -166,6 +166,7 @@
             <a class="nav-item" data-page="verification"><i class="ri-file-check-line"></i> Verification</a>
             <a class="nav-item" data-page="surge"><i class="ri-flashlight-line"></i> Surge Pricing</a>
             <a class="nav-item" data-page="withdrawals"><i class="ri-bank-card-line"></i> Withdrawals</a>
+            <a class="nav-item" data-page="staff"><i class="ri-user-settings-line"></i> Staff & Roles</a>
             <a class="nav-item" data-page="settings"><i class="ri-settings-line"></i> Settings</a>
         </nav>
         <div class="theme-toggle" onclick="toggleTheme()">
@@ -219,7 +220,7 @@
         document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
         const active = document.querySelector(`.nav-item[data-page="${page}"]`);
         if (active) active.classList.add('active');
-        const pages = { dashboard: pageDashboard, rides: pageRides, drivers: pageDrivers, riders: pageRiders, earnings: pageEarnings, promos: pagePromos, restaurants: pageRestaurants, 'food-orders': pageFoodOrders, disputes: pageDisputes, verification: pageVerification, surge: pageSurge, withdrawals: pageWithdrawals, settings: pageSettings };
+        const pages = { dashboard: pageDashboard, rides: pageRides, drivers: pageDrivers, riders: pageRiders, earnings: pageEarnings, promos: pagePromos, restaurants: pageRestaurants, 'food-orders': pageFoodOrders, disputes: pageDisputes, verification: pageVerification, surge: pageSurge, withdrawals: pageWithdrawals, staff: pageStaff, settings: pageSettings };
         (pages[page] || pageDashboard)();
     }
     document.querySelectorAll('.nav-item').forEach(item => {
@@ -249,7 +250,7 @@
     // ==================== DASHBOARD ====================
     async function pageDashboard() {
         main().innerHTML = `
-            <div class="header"><h1>Dashboard</h1><div class="header-actions"><button class="btn btn-primary" onclick="pageDashboard()"><i class="ri-refresh-line"></i> Refresh</button></div></div>
+            <div class="header"><h1>Dashboard</h1><div class="header-actions"><div class="dropdown" style="position:relative;display:inline-block"><button class="btn btn-outline" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='block'?'none':'block'"><i class="ri-download-line"></i> Export</button><div style="display:none;position:absolute;right:0;top:110%;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:8px;min-width:180px;z-index:10;box-shadow:0 4px 12px rgba(0,0,0,.1)"><a href="${API}/admin/export/rides" style="display:block;padding:8px 12px;border-radius:6px;text-decoration:none;color:var(--text);font-size:13px" target="_blank">Rides CSV</a><a href="${API}/admin/export/food-orders" style="display:block;padding:8px 12px;border-radius:6px;text-decoration:none;color:var(--text);font-size:13px" target="_blank">Food Orders CSV</a><a href="${API}/admin/export/drivers" style="display:block;padding:8px 12px;border-radius:6px;text-decoration:none;color:var(--text);font-size:13px" target="_blank">Drivers CSV</a><a href="${API}/admin/export/users" style="display:block;padding:8px 12px;border-radius:6px;text-decoration:none;color:var(--text);font-size:13px" target="_blank">Users CSV</a></div></div> <button class="btn btn-primary" onclick="pageDashboard()"><i class="ri-refresh-line"></i> Refresh</button></div></div>
             <div class="stats-grid" id="dash-stats"><div class="stat-card"><div style="padding:20px;color:var(--text-secondary)">Loading...</div></div></div>
             <div class="grid-2-equal">
                 <div class="card"><div class="card-header"><h2>Revenue Trend</h2></div><div class="card-body"><div class="chart-container"><canvas id="chart-revenue"></canvas></div></div></div>
@@ -492,6 +493,19 @@
         await apiPost(`/admin/withdrawals/${id}/process`, { status, reference: ref });
         pageWithdrawals();
     };
+
+    // ==================== STAFF / ROLES ====================
+    async function pageStaff() {
+        main().innerHTML = `<div class="header"><h1>Staff & Roles</h1><div class="header-actions"><button class="btn btn-primary" onclick="pageStaff()"><i class="ri-refresh-line"></i> Refresh</button></div></div><div class="card"><div class="card-header"><h2>Admin Staff</h2></div><table><thead><tr><th>Name</th><th>Phone</th><th>Role</th><th>Verified</th><th>Actions</th></tr></thead><tbody id="staff-body"><tr><td colspan="5" class="loading-row">Loading...</td></tr></tbody></table></div><div class="card" style="margin-top:16px"><div class="card-header"><h2>Available Roles</h2></div><div id="roles-info"></div></div>`;
+        const staff = await apiFetch('/admin/staff'); const roles = await apiFetch('/admin/roles');
+        const tbody = document.getElementById('staff-body');
+        const users = staff?.staff || [];
+        if(!users.length) { tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:24px;color:var(--text-secondary)">No admin staff yet. Promote users from the Users page.</td></tr>'; }
+        else { tbody.innerHTML = users.map(u => `<tr><td><strong>${u.name}</strong></td><td>${u.phone}</td><td><span class="badge badge-purple">${u.role}</span></td><td>${u.is_verified?'<span class="badge badge-green">Yes</span>':'<span class="badge badge-yellow">No</span>'}</td><td><select onchange="setRole('${u.id}',this.value)" style="padding:4px 8px;border-radius:6px;border:1px solid var(--border)">${['user','support','admin','super_admin'].map(r=>`<option ${r===u.role?'selected':''}>${r}</option>`).join('')}</select></td></tr>`).join(''); }
+        const ri = document.getElementById('roles-info');
+        if(roles) { ri.innerHTML = '<div style="padding:16px;display:grid;gap:12px">' + Object.entries(roles).map(([r,p])=>`<div style="padding:12px;background:var(--bg);border-radius:8px"><strong>${r}</strong><div style="font-size:12px;color:var(--text-secondary);margin-top:4px">${p.length?p.join(', '):'No special permissions'}</div></div>`).join('') + '</div>'; }
+    }
+    window.setRole = async function(uid, role) { await apiPost(`/admin/users/${uid}/role`, {role}); pageStaff(); };
 
     // ==================== SETTINGS ====================
     function pageSettings() {

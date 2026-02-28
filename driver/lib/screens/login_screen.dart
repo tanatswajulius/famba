@@ -32,6 +32,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
     _animController.forward();
 
     WidgetsBinding.instance.addPostFrameCallback((_) async {
+      _checkAppVersion();
       final state = context.read<DriverState>();
       final restored = await state.loadSavedAuth();
       if (restored && mounted) {
@@ -39,6 +40,33 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
         Navigator.pushReplacementNamed(context, '/home');
       }
     });
+  }
+
+  Future<void> _checkAppVersion() async {
+    try {
+      final result = await DriverApi.checkAppVersion(currentVersion: '1.0.0');
+      if (!mounted) return;
+      if (result['force'] == true) {
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (_) => AlertDialog(
+            title: const Text('Update Required'),
+            content: Text(result['message'] ?? 'Please update Famba Driver to continue.'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('OK'),
+              ),
+            ],
+          ),
+        );
+      } else if (result['update_available'] == true) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(result['message'] ?? 'A new version is available.')),
+        );
+      }
+    } catch (_) {}
   }
 
   @override

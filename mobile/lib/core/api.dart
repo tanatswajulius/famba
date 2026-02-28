@@ -489,6 +489,21 @@ class Api {
     return jsonDecode(res.body);
   }
 
+  // ==================== APP VERSION ====================
+
+  static Future<Map<String, dynamic>> checkAppVersion({
+    String platform = 'rider_android', required String currentVersion,
+  }) async {
+    final res = await http.get(
+      Uri.parse('$base/app/version?platform=$platform&current=$currentVersion'));
+    return jsonDecode(res.body);
+  }
+
+  // ==================== RECEIPTS ====================
+
+  static String rideReceiptUrl(String jobId) => '$base/receipts/ride/$jobId';
+  static String foodReceiptUrl(String orderId) => '$base/receipts/food/$orderId';
+
   // ==================== WebSocket URLs ====================
 
   static String get wsBase => base.replaceFirst('http', 'ws');

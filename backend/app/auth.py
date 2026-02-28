@@ -52,6 +52,7 @@ class UserResponse(BaseModel):
     phone: str
     name: str
     user_type: str
+    role: str = "user"
     is_verified: bool = False
     wallet_balance: float = 0.0
     created_at: str
