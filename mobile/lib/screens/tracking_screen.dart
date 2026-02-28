@@ -60,13 +60,6 @@ class _TrackingScreenState extends State<TrackingScreen>
 
   Future<void> _initTracking() async {
     await _poll();
-    
-    if (_useWebSocket) {
-      _connectWebSocket();
-    } else {
-      timer = Timer.periodic(const Duration(seconds: 2), (_) => _poll());
-    }
-    
     _fetchRoute();
     _startDemoProgression();
   }
