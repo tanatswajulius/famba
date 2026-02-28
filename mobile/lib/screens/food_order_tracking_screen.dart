@@ -36,6 +36,8 @@ class _FoodOrderTrackingScreenState extends State<FoodOrderTrackingScreen> {
     return context.read<AppState>().activeOrderId;
   }
 
+  bool _demoStarted = false;
+
   @override
   void initState() {
     super.initState();
@@ -76,8 +78,10 @@ class _FoodOrderTrackingScreenState extends State<FoodOrderTrackingScreen> {
 
     final status = _order?['status'] as String?;
     if (status != 'delivered' && status != 'cancelled' && mounted) {
-      _pollTimer?.cancel();
-      _pollTimer = Timer(const Duration(seconds: 3), _pollOrder);
+      if (!_demoStarted) {
+        _demoStarted = true;
+        _startDemoProgression();
+      }
     }
   }
 
@@ -116,6 +120,37 @@ class _FoodOrderTrackingScreenState extends State<FoodOrderTrackingScreen> {
       return;
     }
     if (mounted) setState(() => _isCancelling = false);
+  }
+
+  void _startDemoProgression() {
+    if (_order == null) return;
+    final currentStatus = _order!['status'] as String? ?? 'placed';
+    const allSteps = ['placed', 'confirmed', 'preparing', 'ready', 'picked_up', 'delivering', 'delivered'];
+    final startIdx = allSteps.indexOf(currentStatus);
+    if (startIdx < 0 || startIdx >= allSteps.length - 1) return;
+
+    final remaining = allSteps.sublist(startIdx + 1);
+    const stepDelay = [
+      Duration(seconds: 4),
+      Duration(seconds: 6),
+      Duration(seconds: 5),
+      Duration(seconds: 4),
+      Duration(seconds: 8),
+      Duration(seconds: 6),
+    ];
+
+    var elapsed = Duration.zero;
+    for (var i = 0; i < remaining.length; i++) {
+      final delayIdx = (startIdx + i).clamp(0, stepDelay.length - 1);
+      elapsed += stepDelay[delayIdx];
+      final step = remaining[i];
+      Future.delayed(elapsed, () {
+        if (!mounted || _order == null) return;
+        setState(() {
+          _order = Map<String, dynamic>.from(_order!)..['status'] = step;
+        });
+      });
+    }
   }
 
   void _goHome() {
