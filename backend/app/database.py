@@ -417,10 +417,31 @@ def get_db_session() -> Session:
 
 
 # Initialize database
+def _migrate_db():
+    """Add missing columns to existing tables."""
+    import sqlite3
+    if "sqlite" not in str(engine.url):
+        return
+    db_path = str(engine.url).replace("sqlite:///", "")
+    conn = sqlite3.connect(db_path)
+    cursor = conn.cursor()
+    migrations = [
+        ("users", "role", "VARCHAR(30) DEFAULT 'user'"),
+    ]
+    for table, column, col_type in migrations:
+        try:
+            cursor.execute(f"ALTER TABLE {table} ADD COLUMN {column} {col_type}")
+            conn.commit()
+        except sqlite3.OperationalError:
+            pass
+    conn.close()
+
+
 def init_db():
     """Create all tables and seed initial data."""
     Base.metadata.create_all(bind=engine)
-    
+    _migrate_db()
+
     with get_db() as db:
         _seed_initial_data(db)
 
