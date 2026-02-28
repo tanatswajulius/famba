@@ -59,18 +59,39 @@ class _TrackingScreenState extends State<TrackingScreen>
   }
 
   Future<void> _initTracking() async {
-    // Initial poll to get job data
     await _poll();
     
-    // Try WebSocket first, fall back to polling
     if (_useWebSocket) {
       _connectWebSocket();
     } else {
       timer = Timer.periodic(const Duration(seconds: 2), (_) => _poll());
     }
     
-    // Fetch OSRM route
     _fetchRoute();
+    _startDemoProgression();
+  }
+
+  void _startDemoProgression() {
+    const demoSteps = ["enroute", "arrived", "riding", "complete"];
+    const delays = [Duration(seconds: 5), Duration(seconds: 8), Duration(seconds: 6), Duration(seconds: 10)];
+    var elapsed = Duration.zero;
+    for (var i = 0; i < demoSteps.length; i++) {
+      elapsed += delays[i];
+      Future.delayed(elapsed, () {
+        if (!mounted || job == null) return;
+        setState(() {
+          job = Job(
+            id: job!.id, status: demoSteps[i],
+            pickupLat: job!.pickupLat, pickupLng: job!.pickupLng,
+            dropLat: job!.dropLat, dropLng: job!.dropLng,
+            fareUsd: job!.fareUsd ?? 2.45,
+            driver: job!.driver, driverLat: job!.driverLat, driverLng: job!.driverLng,
+            paymentMethod: job!.paymentMethod,
+          );
+        });
+        if (demoSteps[i] == "complete") timer?.cancel();
+      });
+    }
   }
 
   void _connectWebSocket() {
@@ -307,7 +328,7 @@ class _TrackingScreenState extends State<TrackingScreen>
   String _getStatusLabel() {
     switch (job?.status) {
       case "driver_assigned":
-        return "Finding your driver...";
+        return "Driver matched!";
       case "enroute":
         return "Driver is on the way";
       case "arrived":
