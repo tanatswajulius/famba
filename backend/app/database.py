@@ -419,22 +419,19 @@ def get_db_session() -> Session:
 # Initialize database
 def _migrate_db():
     """Add missing columns to existing tables."""
-    import sqlite3
-    if "sqlite" not in str(engine.url):
-        return
-    db_path = str(engine.url).replace("sqlite:///", "")
-    conn = sqlite3.connect(db_path)
-    cursor = conn.cursor()
+    from sqlalchemy import text, inspect
+    insp = inspect(engine)
+    existing_cols = {c["name"] for c in insp.get_columns("users")}
     migrations = [
         ("users", "role", "VARCHAR(30) DEFAULT 'user'"),
     ]
     for table, column, col_type in migrations:
-        try:
-            cursor.execute(f"ALTER TABLE {table} ADD COLUMN {column} {col_type}")
-            conn.commit()
-        except sqlite3.OperationalError:
-            pass
-    conn.close()
+        if column not in existing_cols:
+            try:
+                with engine.begin() as conn:
+                    conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {column} {col_type}"))
+            except Exception:
+                pass
 
 
 def init_db():
