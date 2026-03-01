@@ -75,11 +75,11 @@ class DriverProfileScreen extends StatelessWidget {
               // Stats
               Row(
                 children: [
-                  Expanded(child: _statBox('156', 'Total Trips')),
+                  Expanded(child: _statBox('${state.todayTrips}', 'Trips Today')),
                   const SizedBox(width: 12),
-                  Expanded(child: _statBox('\$320', 'This Month')),
+                  Expanded(child: _statBox('\$${state.todayEarnings.toStringAsFixed(0)}', 'Today')),
                   const SizedBox(width: 12),
-                  Expanded(child: _statBox('98%', 'Acceptance')),
+                  Expanded(child: _statBox('${state.rating}', 'Rating')),
                 ],
               ),
               const SizedBox(height: 24),

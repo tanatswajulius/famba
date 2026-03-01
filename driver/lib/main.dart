@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'core/driver_state.dart';
+import 'screens/splash_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/ride_request_screen.dart';
@@ -95,7 +96,8 @@ class FambaDriverApp extends StatelessWidget {
         ),
       ),
       routes: {
-        '/': (_) => const LoginScreen(),
+        '/': (_) => const SplashScreen(),
+        '/login': (_) => const LoginScreen(),
         '/home': (_) => const DriverHomeScreen(),
         '/ride-request': (_) => const RideRequestScreen(),
         '/navigation': (_) => const NavigationScreen(),

@@ -463,7 +463,7 @@ class _QuoteScreenState extends State<QuoteScreen>
                 ),
                 child: Center(
                   child: Text(
-                    driver['name'][0],
+                    (driver['name'] ?? 'D')[0],
                     style: const TextStyle(
                       color: Colors.white,
                       fontSize: 22,
@@ -534,9 +534,9 @@ class _QuoteScreenState extends State<QuoteScreen>
               children: [
                 Icon(Icons.two_wheeler_rounded, size: 20, color: FambaColors.primary),
                 const SizedBox(width: 10),
-                const Expanded(
+                Expanded(
                   child: Text(
-                    "Bajaj Boxer • Green • MBK-2489",
+                    "${driver['vehicle_type'] ?? 'Motorcycle'} • ${driver['vehicle_color'] ?? ''} • ${driver['plate'] ?? ''}",
                     style: TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.w500,

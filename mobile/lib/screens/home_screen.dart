@@ -50,10 +50,20 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
       CurvedAnimation(parent: _animController, curve: Curves.easeOut),
     );
     _animController.forward();
-    
-    // Listen for location changes to update estimate
+
     _pickup.addListener(_onLocationChanged);
     _drop.addListener(_onLocationChanged);
+
+    _loadWalletBalance();
+  }
+
+  Future<void> _loadWalletBalance() async {
+    try {
+      final bal = await Api.getWalletBalance();
+      if (!mounted) return;
+      final state = context.read<AppState>();
+      state.setWalletBalance((bal['balance'] as num?)?.toDouble() ?? 0.0);
+    } catch (_) {}
   }
 
   @override
@@ -266,12 +276,14 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                                     color: FambaColors.primaryDark,
                                   ),
                                   const SizedBox(width: 6),
-                                  const Text(
-                                    "\$12.00",
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.w700,
-                                      fontSize: 14,
-                                      color: FambaColors.primaryDark,
+                                  Consumer<AppState>(
+                                    builder: (_, state, __) => Text(
+                                      "\$${state.walletBalance.toStringAsFixed(2)}",
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.w700,
+                                        fontSize: 14,
+                                        color: FambaColors.primaryDark,
+                                      ),
                                     ),
                                   ),
                                 ],
@@ -552,9 +564,9 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                       ),
                       const SizedBox(width: 12),
                       _actionTile(
-                        icon: Icons.analytics_rounded,
-                        label: "Earnings",
-                        onTap: () => Navigator.pushNamed(context, '/driver-earnings'),
+                        icon: Icons.star_rounded,
+                        label: "Saved",
+                        onTap: () => Navigator.pushNamed(context, '/saved-places'),
                       ),
                       const SizedBox(width: 12),
                       _actionTile(

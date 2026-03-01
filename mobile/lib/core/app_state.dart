@@ -3,6 +3,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 class AppState extends ChangeNotifier {
   String riderName = "Guest";
+  String riderEmail = "";
   String? userId;
   String? phone;
   String? accessToken;
@@ -11,6 +12,8 @@ class AppState extends ChangeNotifier {
   String? activeOrderId;
   double walletBalance = 0.0;
   bool isDarkMode = false;
+
+  String get riderPhone => phone ?? "";
 
   // Cart state for food delivery
   String? cartRestaurantId;

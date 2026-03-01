@@ -19,6 +19,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
   Timer? _mockRequestTimer;
   WebSocketChannel? _wsChannel;
   bool _wsConnected = false;
+  bool _modalShowing = false;
 
   @override
   void initState() {
@@ -39,7 +40,12 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
       _wsChannel = WebSocketChannel.connect(Uri.parse(DriverApi.wsUrl));
       _wsChannel!.stream.listen(
         (message) {
-          final data = jsonDecode(message);
+          dynamic data;
+          try {
+            data = jsonDecode(message);
+          } catch (_) {
+            return;
+          }
           final state = context.read<DriverState>();
           final type = data['type'] ?? '';
           if (type == 'ride_request' && state.isOnline && !state.isBusy) {
@@ -113,16 +119,14 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
   Widget build(BuildContext context) {
     return Consumer<DriverState>(
       builder: (context, state, _) {
-        // Show ride request popup
-        if (state.currentRequest != null) {
+        if (state.currentRequest != null && !_modalShowing) {
           WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (state.currentRequest != null) _showRideRequest(context, state);
+            if (state.currentRequest != null && !_modalShowing) _showRideRequest(context, state);
           });
         }
-        // Show delivery request popup
-        if (state.currentDeliveryRequest != null) {
+        if (state.currentDeliveryRequest != null && !_modalShowing) {
           WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (state.currentDeliveryRequest != null) _showDeliveryRequest(context, state);
+            if (state.currentDeliveryRequest != null && !_modalShowing) _showDeliveryRequest(context, state);
           });
         }
 
@@ -395,8 +399,9 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
   // ============= REQUEST POPUPS =============
 
   void _showRideRequest(BuildContext context, DriverState state) {
+    _modalShowing = true;
     final request = state.currentRequest!;
-    showModalBottomSheet(
+    showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
@@ -464,13 +469,13 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
             Row(
               children: [
                 Expanded(child: OutlinedButton(
-                  onPressed: () { state.declineRide(); Navigator.pop(context); },
+                  onPressed: () { _modalShowing = false; state.declineRide(); Navigator.pop(context); },
                   style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 16), side: const BorderSide(color: FambaColors.error), foregroundColor: FambaColors.error),
                   child: const Text('Decline'),
                 )),
                 const SizedBox(width: 12),
                 Expanded(flex: 2, child: ElevatedButton(
-                  onPressed: () { state.acceptRide(); Navigator.pop(context); Navigator.pushNamed(context, '/navigation'); },
+                  onPressed: () { _modalShowing = false; state.acceptRide(); Navigator.pop(context); Navigator.pushNamed(context, '/navigation'); },
                   style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 16)),
                   child: const Text('Accept Ride'),
                 )),
@@ -484,6 +489,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
   }
 
   void _showDeliveryRequest(BuildContext context, DriverState state) {
+    _modalShowing = true;
     final req = state.currentDeliveryRequest!;
     showModalBottomSheet(
       context: context,
@@ -579,13 +585,13 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
             Row(
               children: [
                 Expanded(child: OutlinedButton(
-                  onPressed: () { state.declineDelivery(); Navigator.pop(context); },
+                  onPressed: () { _modalShowing = false; state.declineDelivery(); Navigator.pop(context); },
                   style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 16), side: const BorderSide(color: FambaColors.error), foregroundColor: FambaColors.error),
                   child: const Text('Decline'),
                 )),
                 const SizedBox(width: 12),
                 Expanded(flex: 2, child: ElevatedButton(
-                  onPressed: () { state.acceptDelivery(); Navigator.pop(context); Navigator.pushNamed(context, '/delivery-navigation'); },
+                  onPressed: () { _modalShowing = false; state.acceptDelivery(); Navigator.pop(context); Navigator.pushNamed(context, '/delivery-navigation'); },
                   style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 16), backgroundColor: FambaColors.warning),
                   child: const Text('Accept Delivery', style: TextStyle(color: Colors.white)),
                 )),

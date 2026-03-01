@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../main.dart';
+import '../core/api.dart';
 
 class WalletScreen extends StatefulWidget {
   const WalletScreen({super.key});
@@ -13,36 +14,8 @@ class _WalletScreenState extends State<WalletScreen>
   late Animation<double> _fadeIn;
   late Animation<Offset> _slideUp;
 
-  final _transactions = const [
-    {
-      "title": "Trip to Avondale",
-      "subtitle": "CBD → Avondale Shops",
-      "amount": -3.80,
-      "time": "Today, 2:14 PM",
-      "icon": Icons.two_wheeler_rounded,
-    },
-    {
-      "title": "Top up",
-      "subtitle": "EcoCash *4521",
-      "amount": 10.00,
-      "time": "Yesterday, 7:42 PM",
-      "icon": Icons.add_circle_rounded,
-    },
-    {
-      "title": "Trip to UZ",
-      "subtitle": "Eastlea → UZ Campus",
-      "amount": -2.60,
-      "time": "Mon, 9:30 AM",
-      "icon": Icons.two_wheeler_rounded,
-    },
-    {
-      "title": "Promo credit",
-      "subtitle": "First ride discount",
-      "amount": 2.00,
-      "time": "Sun, 12:00 PM",
-      "icon": Icons.card_giftcard_rounded,
-    },
-  ];
+  double _balance = 0.0;
+  List<Map<String, dynamic>> _transactions = [];
 
   @override
   void initState() {
@@ -61,12 +34,116 @@ class _WalletScreenState extends State<WalletScreen>
       CurvedAnimation(parent: _animController, curve: Curves.easeOutCubic),
     );
     _animController.forward();
+    _loadWallet();
   }
 
   @override
   void dispose() {
     _animController.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadWallet() async {
+    try {
+      final bal = await Api.getWalletBalance();
+      final txns = await Api.getWalletTransactions();
+      if (!mounted) return;
+      setState(() {
+        _balance = (bal['balance'] as num?)?.toDouble() ?? 0.0;
+        _transactions = (txns['transactions'] as List<dynamic>?)
+            ?.map((t) => {
+                  "title": t['type'] == 'top_up' ? 'Top up' : (t['type'] ?? 'Transaction'),
+                  "subtitle": t['method'] ?? '',
+                  "amount": (t['amount'] as num?)?.toDouble() ?? 0.0,
+                  "time": t['created_at'] ?? '',
+                  "icon": t['type'] == 'top_up' ? Icons.add_circle_rounded : Icons.two_wheeler_rounded,
+                })
+            .toList() ?? [];
+      });
+    } catch (_) {}
+  }
+
+  void _showTopUp() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        final amountCtrl = TextEditingController();
+        String method = 'ecocash';
+        return Container(
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.of(ctx).viewInsets.bottom + 24,
+            left: 24, right: 24, top: 16,
+          ),
+          child: StatefulBuilder(builder: (ctx, setS) => Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(10))),
+              const SizedBox(height: 20),
+              const Text('Top Up Wallet', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700)),
+              const SizedBox(height: 20),
+              TextField(
+                controller: amountCtrl,
+                keyboardType: TextInputType.number,
+                decoration: InputDecoration(
+                  labelText: 'Amount (USD)',
+                  prefixText: '\$ ',
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
+                ),
+              ),
+              const SizedBox(height: 16),
+              DropdownButtonFormField<String>(
+                value: method,
+                decoration: InputDecoration(
+                  labelText: 'Payment Method',
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
+                ),
+                items: const [
+                  DropdownMenuItem(value: 'ecocash', child: Text('EcoCash')),
+                  DropdownMenuItem(value: 'innbucks', child: Text('InnBucks')),
+                  DropdownMenuItem(value: 'onemoney', child: Text('OneMoney')),
+                  DropdownMenuItem(value: 'bank', child: Text('Bank Transfer')),
+                ],
+                onChanged: (v) => setS(() => method = v ?? 'ecocash'),
+              ),
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                height: 54,
+                child: ElevatedButton(
+                  onPressed: () async {
+                    final amount = double.tryParse(amountCtrl.text);
+                    if (amount == null || amount <= 0) return;
+                    Navigator.pop(ctx);
+                    try {
+                      await Api.walletTopUp(amount: amount, method: method);
+                      _loadWallet();
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('\$$amount added via $method'), backgroundColor: FambaColors.success),
+                        );
+                      }
+                    } catch (e) {
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('Top up failed: $e'), backgroundColor: FambaColors.error),
+                        );
+                      }
+                    }
+                  },
+                  child: const Text('Top Up', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+                ),
+              ),
+            ],
+          )),
+        );
+      },
+    );
   }
 
   @override
@@ -293,12 +370,12 @@ class _WalletScreenState extends State<WalletScreen>
                   ),
                 ),
                 const SizedBox(height: 4),
-                const Row(
+                Row(
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
                     Text(
-                      "\$12",
-                      style: TextStyle(
+                      "\$${_balance.toStringAsFixed(0)}",
+                      style: const TextStyle(
                         color: Colors.white,
                         fontSize: 44,
                         fontWeight: FontWeight.w800,
@@ -306,10 +383,10 @@ class _WalletScreenState extends State<WalletScreen>
                       ),
                     ),
                     Padding(
-                      padding: EdgeInsets.only(bottom: 8, left: 2),
+                      padding: const EdgeInsets.only(bottom: 8, left: 2),
                       child: Text(
-                        ".00",
-                        style: TextStyle(
+                        ".${(_balance * 100 % 100).toStringAsFixed(0).padLeft(2, '0')}",
+                        style: const TextStyle(
                           color: Colors.white70,
                           fontSize: 22,
                           fontWeight: FontWeight.w600,
@@ -357,6 +434,7 @@ class _WalletScreenState extends State<WalletScreen>
             icon: Icons.add_rounded,
             label: "Add cash",
             primary: true,
+            onTap: _showTopUp,
           ),
         ),
         const SizedBox(width: 12),
@@ -381,9 +459,10 @@ class _WalletScreenState extends State<WalletScreen>
     required IconData icon,
     required String label,
     bool primary = false,
+    VoidCallback? onTap,
   }) {
     return GestureDetector(
-      onTap: () {},
+      onTap: onTap ?? () {},
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 16),
         decoration: BoxDecoration(

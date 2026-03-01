@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:provider/provider.dart';
 import '../main.dart';
 import '../core/api.dart';
+import '../core/app_state.dart';
 
 class PromoScreen extends StatefulWidget {
   const PromoScreen({super.key});
@@ -323,19 +326,26 @@ class _PromoScreenState extends State<PromoScreen> {
                     ),
                     child: Row(
                       children: [
-                        const Expanded(
-                          child: Text(
-                            "RIDER2024ABC",
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 16,
-                              fontWeight: FontWeight.w700,
-                              letterSpacing: 1,
-                            ),
-                          ),
+                        Expanded(
+                          child: Builder(builder: (context) {
+                            final state = context.read<AppState>();
+                            final code = 'FAMBA${state.userId?.substring(0, 6).toUpperCase() ?? 'RIDER'}';
+                            return Text(
+                              code,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 16,
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: 1,
+                              ),
+                            );
+                          }),
                         ),
                         GestureDetector(
                           onTap: () {
+                            final state = context.read<AppState>();
+                            final code = 'FAMBA${state.userId?.substring(0, 6).toUpperCase() ?? 'RIDER'}';
+                            Clipboard.setData(ClipboardData(text: code));
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(
                                 content: const Text("Referral code copied!"),

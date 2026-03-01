@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'core/app_state.dart';
 import 'core/offline_queue.dart';
+import 'screens/splash_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/quote_screen.dart';
@@ -232,7 +233,8 @@ class FambaApp extends StatelessWidget {
         ),
       ),
       routes: {
-        '/': (_) => const LoginScreen(),
+        '/': (_) => const SplashScreen(),
+        '/login': (_) => const LoginScreen(),
         '/home': (_) => const HomeScreen(),
         '/quote': (_) => const QuoteScreen(),
         '/track': (_) => const TrackingScreen(),

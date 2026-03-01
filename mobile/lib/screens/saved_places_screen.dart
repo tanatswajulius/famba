@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../main.dart';
+import '../core/api.dart';
 
 class SavedPlacesScreen extends StatefulWidget {
   const SavedPlacesScreen({super.key});
@@ -8,29 +9,54 @@ class SavedPlacesScreen extends StatefulWidget {
 }
 
 class _SavedPlacesScreenState extends State<SavedPlacesScreen> {
-  final List<Map<String, dynamic>> _places = [
-    {
-      "id": "1",
-      "name": "Home",
-      "address": "42 Samora Machel Ave, Eastlea",
-      "icon": Icons.home_rounded,
-      "type": "home",
-    },
-    {
-      "id": "2",
-      "name": "Work",
-      "address": "UZ Campus, Mt Pleasant",
-      "icon": Icons.work_rounded,
-      "type": "work",
-    },
-    {
-      "id": "3",
-      "name": "Gym",
-      "address": "Virgin Active Borrowdale",
-      "icon": Icons.fitness_center_rounded,
-      "type": "other",
-    },
-  ];
+  List<Map<String, dynamic>> _places = [];
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadPlaces();
+  }
+
+  IconData _iconFor(String? type) {
+    switch (type) {
+      case 'home': return Icons.home_rounded;
+      case 'work': return Icons.work_rounded;
+      default: return Icons.place_rounded;
+    }
+  }
+
+  Future<void> _loadPlaces() async {
+    try {
+      final data = await Api.getFavoritePlaces();
+      if (!mounted) return;
+      setState(() {
+        _places = (data as List<dynamic>).map((p) => {
+          "id": p['id']?.toString() ?? '',
+          "name": p['label'] ?? p['name'] ?? 'Place',
+          "address": p['address'] ?? '',
+          "icon": _iconFor(p['label']?.toString().toLowerCase()),
+          "type": p['label']?.toString().toLowerCase() ?? 'other',
+        }).toList();
+        if (_places.isEmpty) {
+          _places = [
+            {"id": "0", "name": "Home", "address": "Add your home address", "icon": Icons.home_rounded, "type": "home"},
+            {"id": "0", "name": "Work", "address": "Add your work address", "icon": Icons.work_rounded, "type": "work"},
+          ];
+        }
+        _loading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _places = [
+          {"id": "0", "name": "Home", "address": "Add your home address", "icon": Icons.home_rounded, "type": "home"},
+          {"id": "0", "name": "Work", "address": "Add your work address", "icon": Icons.work_rounded, "type": "work"},
+        ];
+        _loading = false;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {

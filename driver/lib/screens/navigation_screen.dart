@@ -288,11 +288,12 @@ class NavigationScreen extends StatelessWidget {
         state.startRide();
         break;
       case 'riding':
+        final earned = (state.activeRide?.fare ?? 0) * 0.85;
         state.completeRide();
         Navigator.popUntil(context, ModalRoute.withName('/home'));
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Trip completed! You earned \$${(state.activeRide?.fare ?? 0 * 0.85).toStringAsFixed(2)}'),
+            content: Text('Trip completed! You earned \$${earned.toStringAsFixed(2)}'),
             backgroundColor: FambaColors.success,
           ),
         );

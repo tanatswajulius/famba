@@ -106,6 +106,8 @@ class DriverState extends ChangeNotifier {
   int _todayTrips = 0;
   int _todayDeliveries = 0;
   double _rating = 4.8;
+  final List<Map<String, dynamic>> _completedTrips = [];
+  List<Map<String, dynamic>> get completedTrips => _completedTrips;
   RideRequest? _currentRequest;
   RideRequest? _activeRide;
   DeliveryRequest? _currentDeliveryRequest;
@@ -239,6 +241,13 @@ class DriverState extends ChangeNotifier {
     if (_activeRide != null) {
       _todayEarnings += _activeRide!.fare * 0.85;
       _todayTrips += 1;
+      _completedTrips.add({
+        'rider': _activeRide!.riderName,
+        'pickup': _activeRide!.pickup,
+        'dropoff': _activeRide!.dropoff,
+        'fare': _activeRide!.fare * 0.85,
+        'time': '${DateTime.now().hour}:${DateTime.now().minute.toString().padLeft(2, '0')}',
+      });
     }
     _activeRide = null;
     _status = DriverStatus.online;

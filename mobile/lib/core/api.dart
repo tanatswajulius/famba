@@ -328,10 +328,20 @@ class Api {
     return jsonDecode(res.body);
   }
 
-  static Future<List<Map<String, dynamic>>> getWalletTransactions() async {
+  static Future<Map<String, dynamic>> getWalletTransactions() async {
     final res = await http.get(Uri.parse('$base/wallet/transactions'), headers: _headers());
-    final data = jsonDecode(res.body);
-    return List<Map<String, dynamic>>.from(data['transactions'] ?? []);
+    return jsonDecode(res.body);
+  }
+
+  // ==================== PROFILE ====================
+
+  static Future<Map<String, dynamic>> updateProfile({String? name, String? email}) async {
+    final body = <String, dynamic>{};
+    if (name != null) body['name'] = name;
+    if (email != null) body['email'] = email;
+    final res = await http.put(Uri.parse('$base/users/me'), headers: _headers(),
+      body: jsonEncode(body));
+    return jsonDecode(res.body);
   }
 
   // ==================== FOOD RATINGS ====================

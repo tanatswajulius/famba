@@ -13,6 +13,7 @@ class _HistoryScreenState extends State<HistoryScreen> with SingleTickerProvider
   late TabController _tabController;
   List<Map<String, dynamic>> _all = [];
   bool _loading = true;
+  String? _error;
 
   @override
   void initState() {
@@ -32,7 +33,7 @@ class _HistoryScreenState extends State<HistoryScreen> with SingleTickerProvider
       final data = await Api.getOrderHistory(limit: 100);
       if (mounted) setState(() { _all = data; _loading = false; });
     } catch (e) {
-      if (mounted) setState(() => _loading = false);
+      if (mounted) setState(() { _loading = false; _error = 'Could not load history'; });
     }
   }
 
@@ -131,7 +132,11 @@ class _HistoryScreenState extends State<HistoryScreen> with SingleTickerProvider
         statusColor = FambaColors.primary;
     }
 
-    return Container(
+    return GestureDetector(
+      onTap: () {
+        Navigator.pushNamed(context, '/receipt', arguments: item);
+      },
+      child: Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -223,6 +228,7 @@ class _HistoryScreenState extends State<HistoryScreen> with SingleTickerProvider
           ),
         ],
       ),
+    ),
     );
   }
 

@@ -209,6 +209,23 @@ def get_me(current_user: dict = Depends(get_current_user)):
     )
 
 
+@app.put("/users/me")
+def update_me(payload: dict, current_user: dict = Depends(get_current_user)):
+    """Update current user profile."""
+    user_id = current_user["id"]
+    updates = {}
+    if "name" in payload:
+        updates["name"] = payload["name"]
+    if "email" in payload:
+        updates["email"] = payload["email"]
+    if not updates:
+        raise HTTPException(400, "Nothing to update")
+    result = db_update_user(user_id, **updates)
+    if not result:
+        raise HTTPException(404, "User not found")
+    return {"ok": True, "user_id": user_id}
+
+
 # ==================== ROUTING ====================
 
 @app.get("/route")
@@ -425,7 +442,7 @@ def create_multistop_job(payload: dict, _auth=Depends(require_auth)):
     price, base, dist = estimate_price_usd(total_distance, corridor, peak=False)
     stop_fee = 0.50 * len(waypoints)
     total_fare = price + stop_fee
-
+    
     job_data = {
         "pickup_text": payload.get("pickup_text"),
         "drop_text": payload.get("drop_text"),
@@ -442,7 +459,7 @@ def create_multistop_job(payload: dict, _auth=Depends(require_auth)):
     drv = get_driver_by_id(payload.get("driver_id")) or pick_driver()
     update_job(job["id"], status="driver_assigned", driver_id=drv["id"], driver=drv)
     simulate(job["id"])
-
+    
     result = get_job(job["id"])
     result["waypoints"] = waypoints
     result["stop_fee"] = stop_fee

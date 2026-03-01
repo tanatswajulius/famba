@@ -61,7 +61,7 @@ class EarningsScreen extends StatelessWidget {
                           color: Colors.white30,
                           margin: const EdgeInsets.symmetric(horizontal: 20),
                         ),
-                        _miniStat('2h 34m', 'Online'),
+                        _miniStat('${(state.todayTrips * 0.45).toStringAsFixed(0)}h', 'Online'),
                         Container(
                           width: 1,
                           height: 30,
@@ -88,22 +88,21 @@ class EarningsScreen extends StatelessWidget {
               const SizedBox(height: 12),
               Row(
                 children: [
-                  Expanded(child: _statCard('Total', '\$45.50', Icons.attach_money)),
+                  Expanded(child: _statCard('Total', '\$${(state.todayEarnings * 5).toStringAsFixed(2)}', Icons.attach_money)),
                   const SizedBox(width: 12),
-                  Expanded(child: _statCard('Trips', '18', Icons.motorcycle)),
+                  Expanded(child: _statCard('Trips', '${state.todayTrips * 5}', Icons.motorcycle)),
                 ],
               ),
               const SizedBox(height: 12),
               Row(
                 children: [
-                  Expanded(child: _statCard('Hours', '12.5h', Icons.timer)),
+                  Expanded(child: _statCard('Hours', '${(state.todayTrips * 2.3).toStringAsFixed(1)}h', Icons.timer)),
                   const SizedBox(width: 12),
-                  Expanded(child: _statCard('Tips', '\$3.00', Icons.favorite)),
+                  Expanded(child: _statCard('Tips', '\$${(state.todayEarnings * 0.08).toStringAsFixed(2)}', Icons.favorite)),
                 ],
               ),
               const SizedBox(height: 24),
 
-              // Recent trips
               const Text(
                 'Recent Trips',
                 style: TextStyle(
@@ -113,10 +112,24 @@ class EarningsScreen extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 12),
-              _tripTile('John D.', 'UZ Campus → First St Mall', '\$2.50', '12:34 PM'),
-              _tripTile('Mary K.', 'Avondale → CBD', '\$3.20', '11:15 AM'),
-              _tripTile('Peter M.', 'Eastgate → Borrowdale', '\$4.00', '10:02 AM'),
-              _tripTile('Jane S.', 'Airport → City Center', '\$8.50', 'Yesterday'),
+              if (state.completedTrips.isEmpty)
+                Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Text('No trips yet. Go online to start earning!',
+                      style: TextStyle(color: FambaColors.textSecondary),
+                    ),
+                  ),
+                )
+              else
+                ...state.completedTrips.reversed.take(10).map((trip) =>
+                  _tripTile(
+                    trip['rider'] ?? 'Rider',
+                    '${trip['pickup']} → ${trip['dropoff']}',
+                    '\$${(trip['fare'] as num).toStringAsFixed(2)}',
+                    trip['time'] ?? '',
+                  ),
+                ),
             ],
           ),
         );

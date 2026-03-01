@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../core/app_state.dart';
+import '../core/api.dart';
 import '../main.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -10,15 +11,24 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
-  final _nameController = TextEditingController(text: "Rider");
-  final _phoneController = TextEditingController(text: "+263 77 123 4567");
-  final _emailController = TextEditingController(text: "rider@example.com");
+  late TextEditingController _nameController;
+  late TextEditingController _phoneController;
+  late TextEditingController _emailController;
   
   bool _quietRide = false;
   bool _acPreferred = true;
   bool _helmetProvided = true;
   bool _notifications = true;
   bool _promoNotifications = true;
+
+  @override
+  void initState() {
+    super.initState();
+    final state = context.read<AppState>();
+    _nameController = TextEditingController(text: state.riderName);
+    _phoneController = TextEditingController(text: state.riderPhone);
+    _emailController = TextEditingController(text: state.riderEmail.isNotEmpty ? state.riderEmail : '');
+  }
 
   @override
   void dispose() {
@@ -78,10 +88,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       ),
                       shape: BoxShape.circle,
                     ),
-                    child: const Center(
+                    child: Center(
                       child: Text(
-                        "R",
-                        style: TextStyle(
+                        _nameController.text.isNotEmpty ? _nameController.text[0].toUpperCase() : 'U',
+                        style: const TextStyle(
                           color: Colors.white,
                           fontSize: 40,
                           fontWeight: FontWeight.w700,
@@ -405,7 +415,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  void _saveProfile() {
+  Future<void> _saveProfile() async {
+    final state = context.read<AppState>();
+    state.riderName = _nameController.text;
+    try {
+      await Api.updateProfile(name: _nameController.text, email: _emailController.text);
+    } catch (_) {}
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: const Text("Profile saved!"),

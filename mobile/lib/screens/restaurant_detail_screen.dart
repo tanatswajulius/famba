@@ -32,7 +32,14 @@ class _RestaurantDetailScreenState extends State<RestaurantDetailScreen> {
 
   Future<void> _loadRestaurant() async {
     final args = ModalRoute.of(context)?.settings.arguments;
-    final restaurantId = args is String ? args : (args as Map?)?['restaurantId'] as String?;
+    String? restaurantId;
+    if (args is String) {
+      restaurantId = args;
+    } else if (args is int) {
+      restaurantId = args.toString();
+    } else if (args is Map) {
+      restaurantId = args['restaurantId']?.toString();
+    }
 
     if (restaurantId == null || restaurantId.isEmpty) {
       setState(() {
