@@ -14,7 +14,6 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
   late AnimationController _controller;
   late Animation<double> _fadeIn;
   late Animation<Offset> _slideUp;
-  late Animation<double> _scaleIn;
 
   bool _isLogin = true;
   bool _loading = false;
@@ -27,15 +26,12 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
   @override
   void initState() {
     super.initState();
-    _controller = AnimationController(vsync: this, duration: const Duration(milliseconds: 1200));
+    _controller = AnimationController(vsync: this, duration: const Duration(milliseconds: 1000));
     _fadeIn = Tween<double>(begin: 0, end: 1).animate(
       CurvedAnimation(parent: _controller, curve: const Interval(0.0, 0.6, curve: Curves.easeOut)),
     );
-    _slideUp = Tween<Offset>(begin: const Offset(0, 0.3), end: Offset.zero).animate(
+    _slideUp = Tween<Offset>(begin: const Offset(0, 0.15), end: Offset.zero).animate(
       CurvedAnimation(parent: _controller, curve: const Interval(0.2, 0.8, curve: Curves.easeOutCubic)),
-    );
-    _scaleIn = Tween<double>(begin: 0.8, end: 1).animate(
-      CurvedAnimation(parent: _controller, curve: const Interval(0.0, 0.6, curve: Curves.easeOutBack)),
     );
     _controller.forward();
 
@@ -62,16 +58,9 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
             title: const Text('Update Required'),
             content: Text(result['message'] ?? 'Please update Famba to continue.'),
             actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('OK'),
-              ),
+              TextButton(onPressed: () => Navigator.pop(context), child: const Text('OK')),
             ],
           ),
-        );
-      } else if (result['update_available'] == true) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(result['message'] ?? 'A new version is available.')),
         );
       }
     } catch (_) {}
@@ -109,10 +98,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
       if (result.containsKey('access_token')) {
         final token = result['access_token'] as String;
         Api.setToken(token);
-
-        // Fetch user profile
         final me = await Api.getMe();
-
         if (mounted) {
           context.read<AppState>().setAuth(
             userId: me['id'] ?? '',
@@ -124,86 +110,77 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
           Navigator.pushReplacementNamed(context, '/home');
         }
       } else {
-        setState(() {
-          _error = result['detail'] ?? 'Authentication failed';
-          _loading = false;
-        });
+        setState(() { _error = result['detail'] ?? 'Invalid phone or password'; _loading = false; });
       }
     } catch (e) {
-      setState(() { _error = 'Connection error. Check your network.'; _loading = false; });
+      setState(() { _error = 'Connection error. Please try again.'; _loading = false; });
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Container(
-        width: double.infinity,
-        height: double.infinity,
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [FambaColors.primary.withOpacity(0.15), FambaColors.background, Colors.white],
-            stops: const [0.0, 0.5, 1.0],
-          ),
-        ),
-        child: SafeArea(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 28),
-            child: Column(
-              children: [
-                const SizedBox(height: 48),
-                // Logo
-                AnimatedBuilder(
-                  animation: _controller,
-                  builder: (context, child) => Transform.scale(
-                    scale: _scaleIn.value,
-                    child: Opacity(opacity: _fadeIn.value, child: child),
-                  ),
-                  child: Column(
-                    children: [
-                      Container(
-                        width: 100, height: 100,
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(28),
-                          boxShadow: [
-                            BoxShadow(color: FambaColors.primary.withOpacity(0.3), blurRadius: 40, offset: const Offset(0, 16)),
-                          ],
-                        ),
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(28),
-                          child: Padding(
-                            padding: const EdgeInsets.all(18),
-                            child: Image.asset('assets/images/famba.png', fit: BoxFit.contain),
-                          ),
-                        ),
+      backgroundColor: FambaColors.primary,
+      body: SafeArea(
+        child: SingleChildScrollView(
+          child: Column(
+            children: [
+              const SizedBox(height: 48),
+              FadeTransition(
+                opacity: _fadeIn,
+                child: const Column(
+                  children: [
+                    Text(
+                      'famba',
+                      style: TextStyle(
+                        fontSize: 48,
+                        fontWeight: FontWeight.w900,
+                        color: Colors.white,
+                        letterSpacing: -2,
+                        height: 1,
                       ),
-                      const SizedBox(height: 24),
-                      const Text("Famba", style: TextStyle(fontSize: 40, fontWeight: FontWeight.w800, letterSpacing: -2, color: FambaColors.textPrimary)),
-                      const SizedBox(height: 4),
-                      Text(
-                        "Rides & Food Delivery",
-                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500, color: FambaColors.textSecondary),
+                    ),
+                    SizedBox(height: 6),
+                    Text(
+                      'Move. Eat. Live.',
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w500,
+                        color: Colors.white70,
+                        letterSpacing: 2,
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 40),
-                // Toggle Login/Register
-                SlideTransition(
-                  position: _slideUp,
-                  child: FadeTransition(
-                    opacity: _fadeIn,
+              ),
+              const SizedBox(height: 36),
+              SlideTransition(
+                position: _slideUp,
+                child: FadeTransition(
+                  opacity: _fadeIn,
+                  child: Container(
+                    margin: const EdgeInsets.symmetric(horizontal: 20),
+                    padding: const EdgeInsets.fromLTRB(24, 28, 24, 24),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(24),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.15),
+                          blurRadius: 30,
+                          offset: const Offset(0, 12),
+                        ),
+                      ],
+                    ),
                     child: Column(
+                      mainAxisSize: MainAxisSize.min,
                       children: [
                         Container(
                           decoration: BoxDecoration(
                             color: Colors.grey.shade100,
-                            borderRadius: BorderRadius.circular(14),
+                            borderRadius: BorderRadius.circular(12),
                           ),
-                          padding: const EdgeInsets.all(4),
+                          padding: const EdgeInsets.all(3),
                           child: Row(
                             children: [
                               _tabButton("Sign In", _isLogin, () => setState(() => _isLogin = true)),
@@ -213,39 +190,18 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                         ),
                         const SizedBox(height: 24),
                         if (!_isLogin) ...[
-                          TextField(
-                            controller: _nameCtrl,
-                            textCapitalization: TextCapitalization.words,
-                            decoration: const InputDecoration(
-                              hintText: "Full Name",
-                              prefixIcon: Icon(Icons.person_outline_rounded, color: FambaColors.primary),
-                            ),
-                          ),
+                          _inputField(_nameCtrl, "Full Name", Icons.person_outline_rounded, false, TextInputType.name),
                           const SizedBox(height: 14),
                         ],
-                        TextField(
-                          controller: _phoneCtrl,
-                          keyboardType: TextInputType.phone,
-                          decoration: const InputDecoration(
-                            hintText: "Phone Number",
-                            prefixIcon: Icon(Icons.phone_outlined, color: FambaColors.primary),
-                          ),
-                        ),
+                        _inputField(_phoneCtrl, "Phone Number", Icons.phone_outlined, false, TextInputType.phone),
                         const SizedBox(height: 14),
-                        TextField(
-                          controller: _passCtrl,
-                          obscureText: true,
-                          decoration: const InputDecoration(
-                            hintText: "Password",
-                            prefixIcon: Icon(Icons.lock_outline_rounded, color: FambaColors.primary),
-                          ),
-                        ),
+                        _inputField(_passCtrl, "Password", Icons.lock_outline_rounded, true, TextInputType.visiblePassword),
                         if (_error != null) ...[
-                          const SizedBox(height: 12),
+                          const SizedBox(height: 14),
                           Container(
                             padding: const EdgeInsets.all(12),
                             decoration: BoxDecoration(
-                              color: FambaColors.error.withOpacity(0.1),
+                              color: FambaColors.error.withValues(alpha: 0.08),
                               borderRadius: BorderRadius.circular(10),
                             ),
                             child: Row(
@@ -260,32 +216,41 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                         const SizedBox(height: 24),
                         SizedBox(
                           width: double.infinity,
-                          height: 56,
+                          height: 54,
                           child: ElevatedButton(
                             onPressed: _loading ? null : _submit,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: FambaColors.primary,
+                              foregroundColor: Colors.white,
+                              disabledBackgroundColor: FambaColors.primary.withValues(alpha: 0.5),
+                              elevation: 0,
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                            ),
                             child: _loading
                                 ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5))
                                 : Text(_isLogin ? "Sign In" : "Create Account", style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
                           ),
                         ),
-                        const SizedBox(height: 16),
-                        // Feature pills
-                        Wrap(
-                          spacing: 10, runSpacing: 10,
-                          alignment: WrapAlignment.center,
-                          children: [
-                            _featurePill(Icons.flash_on_rounded, "Fast pickup"),
-                            _featurePill(Icons.restaurant_rounded, "Food delivery"),
-                            _featurePill(Icons.offline_bolt_rounded, "Works offline"),
-                          ],
-                        ),
-                        const SizedBox(height: 32),
                       ],
                     ),
                   ),
                 ),
-              ],
-            ),
+              ),
+              const SizedBox(height: 28),
+              FadeTransition(
+                opacity: _fadeIn,
+                child: Wrap(
+                  spacing: 10, runSpacing: 10,
+                  alignment: WrapAlignment.center,
+                  children: [
+                    _featurePill(Icons.flash_on_rounded, "Fast pickup"),
+                    _featurePill(Icons.restaurant_rounded, "Food delivery"),
+                    _featurePill(Icons.shield_outlined, "Safe rides"),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 32),
+            ],
           ),
         ),
       ),
@@ -297,11 +262,11 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
       child: GestureDetector(
         onTap: onTap,
         child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 12),
+          padding: const EdgeInsets.symmetric(vertical: 11),
           decoration: BoxDecoration(
             color: active ? Colors.white : Colors.transparent,
             borderRadius: BorderRadius.circular(10),
-            boxShadow: active ? [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 8)] : null,
+            boxShadow: active ? [BoxShadow(color: Colors.black.withValues(alpha: 0.06), blurRadius: 6)] : null,
           ),
           child: Text(
             label,
@@ -316,20 +281,39 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
     );
   }
 
+  Widget _inputField(TextEditingController ctrl, String hint, IconData icon, bool obscure, TextInputType type) {
+    return TextField(
+      controller: ctrl,
+      obscureText: obscure,
+      keyboardType: type,
+      textCapitalization: type == TextInputType.name ? TextCapitalization.words : TextCapitalization.none,
+      decoration: InputDecoration(
+        hintText: hint,
+        hintStyle: TextStyle(color: Colors.grey.shade400),
+        prefixIcon: Icon(icon, color: FambaColors.primary, size: 22),
+        filled: true,
+        fillColor: Colors.grey.shade50,
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.grey.shade200)),
+        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.grey.shade200)),
+        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: FambaColors.primary, width: 2)),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+      ),
+    );
+  }
+
   Widget _featurePill(IconData icon, String label) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Colors.white.withValues(alpha: 0.2),
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: Colors.grey.shade200),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 16, color: FambaColors.primary),
+          Icon(icon, size: 15, color: Colors.white),
           const SizedBox(width: 6),
-          Text(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: FambaColors.textPrimary)),
+          Text(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.white)),
         ],
       ),
     );

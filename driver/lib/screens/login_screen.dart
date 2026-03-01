@@ -11,8 +11,9 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStateMixin {
-  late AnimationController _animController;
+  late AnimationController _controller;
   late Animation<double> _fadeIn;
+  late Animation<Offset> _slideUp;
 
   bool _isLogin = true;
   bool _loading = false;
@@ -25,11 +26,14 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
   @override
   void initState() {
     super.initState();
-    _animController = AnimationController(vsync: this, duration: const Duration(milliseconds: 800));
+    _controller = AnimationController(vsync: this, duration: const Duration(milliseconds: 1000));
     _fadeIn = Tween<double>(begin: 0, end: 1).animate(
-      CurvedAnimation(parent: _animController, curve: Curves.easeOut),
+      CurvedAnimation(parent: _controller, curve: const Interval(0.0, 0.6, curve: Curves.easeOut)),
     );
-    _animController.forward();
+    _slideUp = Tween<Offset>(begin: const Offset(0, 0.15), end: Offset.zero).animate(
+      CurvedAnimation(parent: _controller, curve: const Interval(0.2, 0.8, curve: Curves.easeOutCubic)),
+    );
+    _controller.forward();
 
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       _checkAppVersion();
@@ -54,16 +58,9 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
             title: const Text('Update Required'),
             content: Text(result['message'] ?? 'Please update Famba Driver to continue.'),
             actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('OK'),
-              ),
+              TextButton(onPressed: () => Navigator.pop(context), child: const Text('OK')),
             ],
           ),
-        );
-      } else if (result['update_available'] == true) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(result['message'] ?? 'A new version is available.')),
         );
       }
     } catch (_) {}
@@ -71,7 +68,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
 
   @override
   void dispose() {
-    _animController.dispose();
+    _controller.dispose();
     _phoneCtrl.dispose();
     _nameCtrl.dispose();
     _passCtrl.dispose();
@@ -101,9 +98,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
       if (result.containsKey('access_token')) {
         final token = result['access_token'] as String;
         DriverApi.setToken(token);
-
         final me = await DriverApi.getMe();
-
         if (mounted) {
           context.read<DriverState>().setAuth(
             driverId: me['id'] ?? '',
@@ -114,156 +109,179 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
           Navigator.pushReplacementNamed(context, '/home');
         }
       } else {
-        setState(() {
-          _error = result['detail'] ?? 'Authentication failed';
-          _loading = false;
-        });
+        setState(() { _error = result['detail'] ?? 'Invalid phone or password'; _loading = false; });
       }
     } catch (e) {
-      setState(() { _error = 'Connection error. Check your network.'; _loading = false; });
+      setState(() { _error = 'Connection error. Please try again.'; _loading = false; });
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Container(
-        width: double.infinity,
-        height: double.infinity,
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [FambaColors.surface, FambaColors.background],
-          ),
-        ),
-        child: SafeArea(
-          child: FadeTransition(
-            opacity: _fadeIn,
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 28),
-              child: Column(
-                children: [
-                  const SizedBox(height: 60),
-                  // Logo
-                  Container(
-                    width: 90, height: 90,
+      backgroundColor: FambaColors.primary,
+      body: SafeArea(
+        child: SingleChildScrollView(
+          child: Column(
+            children: [
+              const SizedBox(height: 48),
+              FadeTransition(
+                opacity: _fadeIn,
+                child: Column(
+                  children: [
+                    Container(
+                      width: 64, height: 64,
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.2),
+                        borderRadius: BorderRadius.circular(18),
+                      ),
+                      child: const Icon(Icons.motorcycle_rounded, size: 36, color: Colors.white),
+                    ),
+                    const SizedBox(height: 16),
+                    const Text(
+                      'famba driver',
+                      style: TextStyle(
+                        fontSize: 42,
+                        fontWeight: FontWeight.w900,
+                        color: Colors.white,
+                        letterSpacing: -2,
+                        height: 1,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    const Text(
+                      'Earn on every ride',
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w500,
+                        color: Colors.white70,
+                        letterSpacing: 1.5,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 36),
+              SlideTransition(
+                position: _slideUp,
+                child: FadeTransition(
+                  opacity: _fadeIn,
+                  child: Container(
+                    margin: const EdgeInsets.symmetric(horizontal: 20),
+                    padding: const EdgeInsets.fromLTRB(24, 28, 24, 24),
                     decoration: BoxDecoration(
-                      color: FambaColors.primary,
+                      color: Colors.white,
                       borderRadius: BorderRadius.circular(24),
                       boxShadow: [
                         BoxShadow(
-                          color: FambaColors.primary.withValues(alpha: 0.4),
+                          color: Colors.black.withValues(alpha: 0.15),
                           blurRadius: 30,
                           offset: const Offset(0, 12),
                         ),
                       ],
                     ),
-                    child: const Icon(Icons.motorcycle, size: 48, color: Colors.white),
-                  ),
-                  const SizedBox(height: 24),
-                  const Text(
-                    'Famba Driver',
-                    style: TextStyle(fontSize: 36, fontWeight: FontWeight.w800, letterSpacing: -1.5, color: FambaColors.textPrimary),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Rides & Deliveries',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500, color: FambaColors.textSecondary),
-                  ),
-                  const SizedBox(height: 40),
-
-                  // Toggle
-                  Container(
-                    decoration: BoxDecoration(
-                      color: FambaColors.card,
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    padding: const EdgeInsets.all(4),
-                    child: Row(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
                       children: [
-                        _tabBtn("Sign In", _isLogin, () => setState(() => _isLogin = true)),
-                        _tabBtn("Register", !_isLogin, () => setState(() => _isLogin = false)),
+                        Container(
+                          decoration: BoxDecoration(
+                            color: Colors.grey.shade100,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          padding: const EdgeInsets.all(3),
+                          child: Row(
+                            children: [
+                              _tabButton("Sign In", _isLogin, () => setState(() => _isLogin = true)),
+                              _tabButton("Register", !_isLogin, () => setState(() => _isLogin = false)),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 24),
+                        if (!_isLogin) ...[
+                          _inputField(_nameCtrl, "Full Name", Icons.person_outline_rounded, false, TextInputType.name),
+                          const SizedBox(height: 14),
+                        ],
+                        _inputField(_phoneCtrl, "Phone Number", Icons.phone_outlined, false, TextInputType.phone),
+                        const SizedBox(height: 14),
+                        _inputField(_passCtrl, "Password", Icons.lock_outline_rounded, true, TextInputType.visiblePassword),
+                        if (_error != null) ...[
+                          const SizedBox(height: 14),
+                          Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: FambaColors.error.withValues(alpha: 0.08),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Row(
+                              children: [
+                                const Icon(Icons.error_outline, color: FambaColors.error, size: 18),
+                                const SizedBox(width: 8),
+                                Expanded(child: Text(_error!, style: const TextStyle(color: FambaColors.error, fontSize: 13, fontWeight: FontWeight.w500))),
+                              ],
+                            ),
+                          ),
+                        ],
+                        const SizedBox(height: 24),
+                        SizedBox(
+                          width: double.infinity,
+                          height: 54,
+                          child: ElevatedButton(
+                            onPressed: _loading ? null : _submit,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: FambaColors.primary,
+                              foregroundColor: Colors.white,
+                              disabledBackgroundColor: FambaColors.primary.withValues(alpha: 0.5),
+                              elevation: 0,
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                            ),
+                            child: _loading
+                                ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5))
+                                : Text(_isLogin ? "Sign In" : "Create Account", style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
+                          ),
+                        ),
                       ],
                     ),
                   ),
-                  const SizedBox(height: 24),
-
-                  if (!_isLogin) ...[
-                    _inputField(_nameCtrl, "Full Name", Icons.person_outline, false, TextInputType.name),
-                    const SizedBox(height: 14),
-                  ],
-                  _inputField(_phoneCtrl, "Phone Number", Icons.phone_outlined, false, TextInputType.phone),
-                  const SizedBox(height: 14),
-                  _inputField(_passCtrl, "Password", Icons.lock_outline, true, TextInputType.visiblePassword),
-
-                  if (_error != null) ...[
-                    const SizedBox(height: 12),
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: FambaColors.error.withValues(alpha: 0.15),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Row(
-                        children: [
-                          const Icon(Icons.error_outline, color: FambaColors.error, size: 18),
-                          const SizedBox(width: 8),
-                          Expanded(child: Text(_error!, style: const TextStyle(color: FambaColors.error, fontSize: 13, fontWeight: FontWeight.w500))),
-                        ],
-                      ),
-                    ),
-                  ],
-                  const SizedBox(height: 24),
-
-                  SizedBox(
-                    width: double.infinity,
-                    height: 56,
-                    child: ElevatedButton(
-                      onPressed: _loading ? null : _submit,
-                      child: _loading
-                          ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5))
-                          : Text(_isLogin ? "Sign In" : "Create Account", style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-
-                  // Feature tags
-                  Wrap(
-                    spacing: 10, runSpacing: 10,
-                    alignment: WrapAlignment.center,
-                    children: [
-                      _featureTag(Icons.motorcycle_rounded, "Ride requests"),
-                      _featureTag(Icons.restaurant_rounded, "Food deliveries"),
-                      _featureTag(Icons.attach_money_rounded, "Track earnings"),
-                    ],
-                  ),
-                  const SizedBox(height: 40),
-                ],
+                ),
               ),
-            ),
+              const SizedBox(height: 28),
+              FadeTransition(
+                opacity: _fadeIn,
+                child: Wrap(
+                  spacing: 10, runSpacing: 10,
+                  alignment: WrapAlignment.center,
+                  children: [
+                    _featurePill(Icons.motorcycle_rounded, "Ride requests"),
+                    _featurePill(Icons.restaurant_rounded, "Food deliveries"),
+                    _featurePill(Icons.attach_money_rounded, "Track earnings"),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 32),
+            ],
           ),
         ),
       ),
     );
   }
 
-  Widget _tabBtn(String label, bool active, VoidCallback onTap) {
+  Widget _tabButton(String label, bool active, VoidCallback onTap) {
     return Expanded(
       child: GestureDetector(
         onTap: onTap,
         child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 12),
+          padding: const EdgeInsets.symmetric(vertical: 11),
           decoration: BoxDecoration(
-            color: active ? FambaColors.primary : Colors.transparent,
+            color: active ? Colors.white : Colors.transparent,
             borderRadius: BorderRadius.circular(10),
+            boxShadow: active ? [BoxShadow(color: Colors.black.withValues(alpha: 0.06), blurRadius: 6)] : null,
           ),
           child: Text(
             label,
             textAlign: TextAlign.center,
             style: TextStyle(
               fontSize: 15, fontWeight: FontWeight.w600,
-              color: active ? Colors.white : FambaColors.textSecondary,
+              color: active ? FambaColors.textPrimary : FambaColors.textSecondary,
             ),
           ),
         ),
@@ -276,28 +294,34 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
       controller: ctrl,
       obscureText: obscure,
       keyboardType: type,
-      style: const TextStyle(color: FambaColors.textPrimary),
+      textCapitalization: type == TextInputType.name ? TextCapitalization.words : TextCapitalization.none,
       decoration: InputDecoration(
         hintText: hint,
-        hintStyle: TextStyle(color: FambaColors.textSecondary),
-        prefixIcon: Icon(icon, color: FambaColors.primary),
+        hintStyle: TextStyle(color: Colors.grey.shade400),
+        prefixIcon: Icon(icon, color: FambaColors.primary, size: 22),
+        filled: true,
+        fillColor: Colors.grey.shade50,
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.grey.shade200)),
+        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.grey.shade200)),
+        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: FambaColors.primary, width: 2)),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
       ),
     );
   }
 
-  Widget _featureTag(IconData icon, String label) {
+  Widget _featurePill(IconData icon, String label) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
-        color: FambaColors.card,
+        color: Colors.white.withValues(alpha: 0.2),
         borderRadius: BorderRadius.circular(24),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 16, color: FambaColors.primary),
+          Icon(icon, size: 15, color: Colors.white),
           const SizedBox(width: 6),
-          Text(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: FambaColors.textPrimary)),
+          Text(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.white)),
         ],
       ),
     );

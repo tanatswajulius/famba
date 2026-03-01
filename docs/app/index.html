@@ -34,7 +34,6 @@
 </head>
 <body>
   <script>
-    // Unregister any cached service workers so users always get the latest build
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.getRegistrations().then(function(registrations) {
         for (var r of registrations) { r.unregister(); }
