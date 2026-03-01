@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:async';
 import 'package:http/http.dart' as http;
 
 class DriverApi {
@@ -12,6 +13,7 @@ class DriverApi {
     }
     return 'https://famba-api.onrender.com';
   }
+
   static String basicUser = const String.fromEnvironment('API_USER', defaultValue: 'demo');
   static String basicPass = const String.fromEnvironment('API_PASS', defaultValue: 'demo123');
 
@@ -25,183 +27,182 @@ class DriverApi {
     'Authorization': _jwtToken != null ? 'Bearer $_jwtToken' : _basicAuth,
   };
 
+  static Future<http.Response> _get(String url, {Map<String, String>? headers}) async {
+    headers ??= _headers();
+    try {
+      return await http.get(Uri.parse(url), headers: headers)
+          .timeout(const Duration(seconds: 45));
+    } catch (_) {
+      return await http.get(Uri.parse(url), headers: headers)
+          .timeout(const Duration(seconds: 45));
+    }
+  }
+
+  static Future<http.Response> _post(String url, {Map<String, String>? headers, Object? body}) async {
+    headers ??= _headers();
+    try {
+      return await http.post(Uri.parse(url), headers: headers, body: body)
+          .timeout(const Duration(seconds: 45));
+    } catch (_) {
+      return await http.post(Uri.parse(url), headers: headers, body: body)
+          .timeout(const Duration(seconds: 45));
+    }
+  }
+
+  static Future<http.Response> _put(String url, {Map<String, String>? headers, Object? body}) async {
+    headers ??= _headers();
+    try {
+      return await http.put(Uri.parse(url), headers: headers, body: body)
+          .timeout(const Duration(seconds: 45));
+    } catch (_) {
+      return await http.put(Uri.parse(url), headers: headers, body: body)
+          .timeout(const Duration(seconds: 45));
+    }
+  }
+
+  static Map<String, dynamic> _decode(http.Response res) {
+    if (res.statusCode >= 200 && res.statusCode < 300) {
+      return jsonDecode(res.body);
+    }
+    throw Exception('API error ${res.statusCode}');
+  }
+
+  static List<Map<String, dynamic>> _decodeList(http.Response res, String key) {
+    final data = _decode(res);
+    return List<Map<String, dynamic>>.from(data[key] ?? []);
+  }
+
   // ==================== AUTH ====================
 
   static Future<Map<String, dynamic>> register({
-    required String phone,
-    required String name,
-    required String password,
+    required String phone, required String name, required String password,
   }) async {
-    final res = await http.post(
-      Uri.parse('$base/auth/register'),
+    final res = await _post('$base/auth/register',
       headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({
-        'phone': phone, 'name': name,
-        'password': password, 'user_type': 'driver',
-      }),
-    );
-    return jsonDecode(res.body);
+      body: jsonEncode({'phone': phone, 'name': name, 'password': password, 'user_type': 'driver'}));
+    return _decode(res);
   }
 
   static Future<Map<String, dynamic>> login({
-    required String phone,
-    required String password,
+    required String phone, required String password,
   }) async {
-    final res = await http.post(
-      Uri.parse('$base/auth/login'),
+    final res = await _post('$base/auth/login',
       headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({'phone': phone, 'password': password}),
-    );
-    return jsonDecode(res.body);
+      body: jsonEncode({'phone': phone, 'password': password}));
+    return _decode(res);
   }
 
   static Future<Map<String, dynamic>> getMe() async {
-    final res = await http.get(Uri.parse('$base/auth/me'), headers: _headers());
-    return jsonDecode(res.body);
+    final res = await _get('$base/auth/me');
+    return _decode(res);
   }
 
   // ==================== JOBS ====================
 
   static Future<List<Map<String, dynamic>>> getAvailableJobs() async {
-    final res = await http.get(Uri.parse('$base/jobs'), headers: _headers());
-    final data = jsonDecode(res.body);
-    return List<Map<String, dynamic>>.from(data['jobs'] ?? []);
+    final res = await _get('$base/jobs');
+    return _decodeList(res, 'jobs');
   }
 
   static Future<Map<String, dynamic>> getJob(String jobId) async {
-    final res = await http.get(Uri.parse('$base/jobs/$jobId'), headers: _headers());
-    return jsonDecode(res.body);
+    final res = await _get('$base/jobs/$jobId');
+    return _decode(res);
   }
 
   static Future<Map<String, dynamic>> updateJobStatus({
-    required String jobId,
-    required String status,
+    required String jobId, required String status,
   }) async {
-    final res = await http.put(
-      Uri.parse('$base/jobs/$jobId/status'),
-      headers: _headers(),
-      body: jsonEncode({'status': status}),
-    );
-    return jsonDecode(res.body);
+    final res = await _put('$base/jobs/$jobId/status', body: jsonEncode({'status': status}));
+    return _decode(res);
   }
 
   // ==================== FOOD ORDERS ====================
 
   static Future<Map<String, dynamic>> getFoodOrder(String orderId) async {
-    final res = await http.get(Uri.parse('$base/food-orders/$orderId'), headers: _headers());
-    return jsonDecode(res.body);
+    final res = await _get('$base/food-orders/$orderId');
+    return _decode(res);
   }
 
   static Future<Map<String, dynamic>> updateFoodOrderStatus({
-    required String orderId,
-    required String status,
+    required String orderId, required String status,
   }) async {
-    final res = await http.post(
-      Uri.parse('$base/food-orders/$orderId/status'),
-      headers: _headers(),
-      body: jsonEncode({'status': status}),
-    );
-    return jsonDecode(res.body);
+    final res = await _post('$base/food-orders/$orderId/status', body: jsonEncode({'status': status}));
+    return _decode(res);
   }
 
   // ==================== EARNINGS ====================
 
   static Future<Map<String, dynamic>> getEarnings(String driverId) async {
-    final res = await http.get(Uri.parse('$base/drivers/$driverId/earnings'), headers: _headers());
-    return jsonDecode(res.body);
+    final res = await _get('$base/drivers/$driverId/earnings');
+    return _decode(res);
   }
 
   static Future<Map<String, dynamic>> getLeaderboard() async {
-    final res = await http.get(Uri.parse('$base/drivers/earnings/leaderboard'), headers: _headers());
-    return jsonDecode(res.body);
+    final res = await _get('$base/drivers/earnings/leaderboard');
+    return _decode(res);
   }
 
   // ==================== LOCATION ====================
 
   static Future<void> updateLocation({
-    required String driverId,
-    required double lat,
-    required double lng,
+    required String driverId, required double lat, required double lng,
   }) async {
-    await http.post(
-      Uri.parse('$base/drivers/$driverId/location'),
-      headers: _headers(),
-      body: jsonEncode({'lat': lat, 'lng': lng}),
-    );
+    await _post('$base/drivers/$driverId/location', body: jsonEncode({'lat': lat, 'lng': lng}));
   }
 
   // ==================== CHAT ====================
 
   static Future<Map<String, dynamic>> sendChatMessage({
-    String? jobId,
-    String? orderId,
-    required String message,
+    String? jobId, String? orderId, required String message,
   }) async {
-    final res = await http.post(
-      Uri.parse('$base/chat/send'),
-      headers: _headers(),
+    final res = await _post('$base/chat/send',
       body: jsonEncode({
         if (jobId != null) 'job_id': jobId,
         if (orderId != null) 'order_id': orderId,
-        'sender_type': 'driver',
-        'message': message,
-      }),
-    );
-    return jsonDecode(res.body);
+        'sender_type': 'driver', 'message': message,
+      }));
+    return _decode(res);
   }
 
-  static Future<List<Map<String, dynamic>>> getChatHistory({
-    String? jobId,
-    String? orderId,
-  }) async {
+  static Future<List<Map<String, dynamic>>> getChatHistory({String? jobId, String? orderId}) async {
     var url = '$base/chat/history?limit=50';
     if (jobId != null) url += '&job_id=$jobId';
     if (orderId != null) url += '&order_id=$orderId';
-    final res = await http.get(Uri.parse(url), headers: _headers());
-    final data = jsonDecode(res.body);
-    return List<Map<String, dynamic>>.from(data['messages'] ?? []);
+    final res = await _get(url);
+    return _decodeList(res, 'messages');
   }
 
   // ==================== EARNINGS & WITHDRAWALS ====================
 
   static Future<Map<String, dynamic>> getBalance(String driverId) async {
-    final res = await http.get(Uri.parse('$base/drivers/$driverId/balance'), headers: _headers());
-    return jsonDecode(res.body);
+    final res = await _get('$base/drivers/$driverId/balance');
+    return _decode(res);
   }
 
   static Future<Map<String, dynamic>> requestWithdrawal({
-    required String driverId,
-    required double amount,
-    required String method,
-    required String accountNumber,
+    required String driverId, required double amount,
+    required String method, required String accountNumber,
   }) async {
-    final res = await http.post(Uri.parse('$base/drivers/$driverId/withdraw'),
-      headers: _headers(),
-      body: jsonEncode({
-        'amount': amount, 'method': method, 'account_number': accountNumber,
-      }));
-    return jsonDecode(res.body);
+    final res = await _post('$base/drivers/$driverId/withdraw',
+      body: jsonEncode({'amount': amount, 'method': method, 'account_number': accountNumber}));
+    return _decode(res);
   }
 
   static Future<List<Map<String, dynamic>>> getWithdrawals(String driverId) async {
-    final res = await http.get(Uri.parse('$base/drivers/$driverId/withdrawals'), headers: _headers());
-    final data = jsonDecode(res.body);
-    return List<Map<String, dynamic>>.from(data['withdrawals'] ?? []);
+    final res = await _get('$base/drivers/$driverId/withdrawals');
+    return _decodeList(res, 'withdrawals');
   }
 
   // ==================== APP VERSION ====================
 
   static Future<Map<String, dynamic>> checkAppVersion({required String currentVersion}) async {
-    final res = await http.get(
-      Uri.parse('$base/app/version?platform=driver_android&current=$currentVersion'));
-    return jsonDecode(res.body);
+    final res = await _get('$base/app/version?platform=driver_android&current=$currentVersion');
+    return _decode(res);
   }
 
   // ==================== WebSocket URLs ====================
 
   static String get wsBase => base.replaceFirst('http', 'ws');
-
   static String get wsUrl => '$wsBase/ws/driver';
-
   static String wsChatRoom(String roomId) => '$wsBase/ws/chat/$roomId';
 }
