@@ -363,7 +363,7 @@ class _QuoteScreenState extends State<QuoteScreen>
             child: Row(
               children: [
                 Expanded(
-                  child: _fareBreakdownItem("Base", "\$${quote!['base_fare']}"),
+                  child: _fareBreakdownItem("Base", "\$${(quote!['base_fare'] as num).toStringAsFixed(2)}"),
                 ),
                 Container(
                   width: 1,
@@ -371,7 +371,7 @@ class _QuoteScreenState extends State<QuoteScreen>
                   color: Colors.grey.shade200,
                 ),
                 Expanded(
-                  child: _fareBreakdownItem("Distance", "\$${quote!['distance_fare']}"),
+                  child: _fareBreakdownItem("Distance", "\$${(quote!['distance_fare'] as num).toStringAsFixed(2)}"),
                 ),
                 Container(
                   width: 1,
@@ -379,7 +379,7 @@ class _QuoteScreenState extends State<QuoteScreen>
                   color: Colors.grey.shade200,
                 ),
                 Expanded(
-                  child: _fareBreakdownItem("Total", "\$${quote!['total_usd']}", bold: true),
+                  child: _fareBreakdownItem("Total", "\$${(quote!['total_usd'] as num).toStringAsFixed(2)}", bold: true),
                 ),
               ],
             ),
@@ -679,10 +679,14 @@ class _QuoteScreenState extends State<QuoteScreen>
                         fareUsd: quote?['total_usd']?.toDouble(),
                         paymentMethod: paymentMethod,
                       );
-                      app.setJob(j['id']);
-                      if (context.mounted) {
-                        Navigator.pushReplacementNamed(context, '/track',
-                            arguments: j['id']);
+                      final id = j['id']?.toString() ?? '';
+                      if (id.isNotEmpty) {
+                        app.setJob(id);
+                        if (context.mounted) {
+                          Navigator.pushReplacementNamed(context, '/track', arguments: id);
+                        }
+                      } else {
+                        throw Exception('No job ID returned');
                       }
                     } catch (e) {
                       if (!mounted) return;
