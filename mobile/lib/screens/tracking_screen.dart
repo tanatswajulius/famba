@@ -63,52 +63,10 @@ class _TrackingScreenState extends State<TrackingScreen>
   }
 
   Future<void> _initTracking() async {
-    try {
-      await _poll();
-    } catch (_) {
-      // API unreachable - create a local demo job
-    }
-    if (job == null) {
-      setState(() {
-        job = Job(
-          id: jobId,
-          status: 'driver_assigned',
-          pickupLat: _pickupPoint.latitude,
-          pickupLng: _pickupPoint.longitude,
-          dropLat: _dropoffPoint.latitude,
-          dropLng: _dropoffPoint.longitude,
-          fareUsd: 2.35,
-          driver: {'name': 'Tendai M.', 'phone': '+263771234567', 'rating': 4.8,
-                   'vehicle_type': 'Honda CB125', 'vehicle_color': 'Red', 'plate': 'ABK-2391'},
-          driverLat: _pickupPoint.latitude + 0.003,
-          driverLng: _pickupPoint.longitude - 0.002,
-        );
-      });
-    }
-    _fetchRoute();
-    _startDemoProgression();
-  }
-
-  void _startDemoProgression() {
-    const demoSteps = ["enroute", "arrived", "riding", "complete"];
-    const delays = [Duration(seconds: 5), Duration(seconds: 8), Duration(seconds: 6), Duration(seconds: 10)];
-    var elapsed = Duration.zero;
-    for (var i = 0; i < demoSteps.length; i++) {
-      elapsed += delays[i];
-      Future.delayed(elapsed, () {
-        if (!mounted || job == null) return;
-        setState(() {
-          job = Job(
-            id: job!.id, status: demoSteps[i],
-            pickupLat: job!.pickupLat, pickupLng: job!.pickupLng,
-            dropLat: job!.dropLat, dropLng: job!.dropLng,
-            fareUsd: job!.fareUsd ?? 2.45,
-            driver: job!.driver, driverLat: job!.driverLat, driverLng: job!.driverLng,
-            paymentMethod: job!.paymentMethod,
-          );
-        });
-        if (demoSteps[i] == "complete") timer?.cancel();
-      });
+    await _poll();
+    if (job != null) {
+      _fetchRoute();
+      _connectWebSocket();
     }
   }
 
@@ -164,13 +122,10 @@ class _TrackingScreenState extends State<TrackingScreen>
   }
 
   Future<void> _poll() async {
-    if (jobId.startsWith('JOB-') || jobId.startsWith('temp_')) return;
-    try {
-      final j = Job.fromJson(await Api.getJob(jobId));
-      if (!mounted) return;
-      setState(() => job = j);
-      if (j.status == "complete") timer?.cancel();
-    } catch (_) {}
+    final j = Job.fromJson(await Api.getJob(jobId));
+    if (!mounted) return;
+    setState(() => job = j);
+    if (j.status == "complete") timer?.cancel();
   }
 
   void _openChat() {

@@ -94,20 +94,14 @@ class _QuoteScreenState extends State<QuoteScreen>
       }
     } catch (e) {
       if (!mounted) return;
-      // Fallback: generate a local quote so the app still works
-      final fallbackPrice = (distanceKm * 0.55) + 0.70;
-      setState(() {
-        quote = {
-          'corridor': 'Harare',
-          'eta_min': (distanceKm * 3).round(),
-          'price_usd': fallbackPrice,
-          'base_fare': 0.70,
-          'distance_fare': distanceKm * 0.55,
-          'total_usd': fallbackPrice,
-        };
-        loading = false;
-      });
-      _animController.forward();
+      setState(() => loading = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to get quote: $e'),
+          backgroundColor: FambaColors.error,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
     }
   }
 

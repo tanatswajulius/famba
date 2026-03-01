@@ -18,17 +18,6 @@ class _RestaurantsScreenState extends State<RestaurantsScreen> {
   String _searchQuery = '';
   String? _selectedCategory = '';
 
-  static final List<Map<String, dynamic>> _demoRestaurants = [
-    {'id': 'rest_01', 'name': 'Chicken Inn CBD', 'cuisine': 'Fried Chicken, Fast Food', 'area': 'CBD', 'rating': 4.3, 'delivery_fee': 1.0, 'avg_prep_time_min': 15, 'is_open': true, 'is_featured': true, 'category': 'fast_food'},
-    {'id': 'rest_02', 'name': "Nando's Avondale", 'cuisine': 'PERi-PERi, Grills', 'area': 'Avondale', 'rating': 4.5, 'delivery_fee': 1.5, 'avg_prep_time_min': 20, 'is_open': true, 'is_featured': true, 'category': 'restaurant'},
-    {'id': 'rest_03', 'name': 'Galley Cafe', 'cuisine': 'Cafe, Breakfast, Sandwiches', 'area': 'Eastlea', 'rating': 4.6, 'delivery_fee': 1.0, 'avg_prep_time_min': 15, 'is_open': true, 'is_featured': false, 'category': 'cafe'},
-    {'id': 'rest_04', 'name': "Mambo's Grill", 'cuisine': 'Zimbabwean, Braai, Traditional', 'area': 'CBD', 'rating': 4.6, 'delivery_fee': 1.0, 'avg_prep_time_min': 25, 'is_open': true, 'is_featured': true, 'category': 'restaurant'},
-    {'id': 'rest_05', 'name': 'Spur Borrowdale', 'cuisine': 'Steaks, Burgers, Family', 'area': 'Borrowdale', 'rating': 4.4, 'delivery_fee': 2.0, 'avg_prep_time_min': 30, 'is_open': true, 'is_featured': false, 'category': 'restaurant'},
-    {'id': 'rest_06', 'name': 'Pizza Inn Milton Park', 'cuisine': 'Pizza, Fast Food', 'area': 'Milton Park', 'rating': 4.2, 'delivery_fee': 1.0, 'avg_prep_time_min': 25, 'is_open': true, 'is_featured': false, 'category': 'fast_food'},
-    {'id': 'rest_07', 'name': 'Freshly Squeezed', 'cuisine': 'Smoothies, Juices, Bowls', 'area': 'Avondale', 'rating': 4.7, 'delivery_fee': 0.75, 'avg_prep_time_min': 10, 'is_open': true, 'is_featured': false, 'category': 'cafe'},
-    {'id': 'rest_08', 'name': "Mimi's Kitchen", 'cuisine': 'Zimbabwean, Home Cooking', 'area': 'Mbare', 'rating': 4.7, 'delivery_fee': 0.75, 'avg_prep_time_min': 20, 'is_open': true, 'is_featured': false, 'category': 'restaurant'},
-  ];
-
   static const List<Map<String, String>> _filterChips = [
     {'label': 'All', 'value': ''},
     {'label': 'Fast Food', 'value': 'fast_food'},
@@ -63,8 +52,7 @@ class _RestaurantsScreenState extends State<RestaurantsScreen> {
       });
     } catch (e) {
       setState(() {
-        _error = null;
-        _restaurants = _demoRestaurants;
+        _error = e.toString();
         _loading = false;
       });
     }
