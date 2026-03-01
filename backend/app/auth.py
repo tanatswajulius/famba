@@ -1,4 +1,4 @@
-"""JWT Authentication module — persisted to database."""
+"""JWT Authentication module - persisted to database."""
 from datetime import datetime, timedelta
 from typing import Optional
 import secrets

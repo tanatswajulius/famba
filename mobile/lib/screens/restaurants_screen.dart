@@ -251,7 +251,7 @@ class _RestaurantCard extends StatelessWidget {
     final cuisine = restaurant['cuisine'] as String? ?? '';
     final area = restaurant['area'] as String? ??
         restaurant['address'] as String? ??
-        '—';
+        '';
     final rating = (restaurant['rating'] ?? 0.0) as num;
     final deliveryFee = (restaurant['delivery_fee'] ?? 0.0) as num;
     final prepTime = (restaurant['avg_prep_time_min'] ?? 25) as int;

@@ -4,13 +4,20 @@ import 'package:connectivity_plus/connectivity_plus.dart';
 import 'offline_queue.dart';
 
 class Api {
-  static String base = const String.fromEnvironment(
-    'API_BASE', defaultValue: 'http://localhost:8000',
-  );
+  static String base = _resolveBase();
+
+  static String _resolveBase() {
+    const env = String.fromEnvironment('API_BASE');
+    if (env.isNotEmpty) return env;
+    if (Uri.base.host == 'localhost' || Uri.base.host == '127.0.0.1') {
+      return 'http://localhost:8000';
+    }
+    return 'https://famba-api.onrender.com';
+  }
   static String basicUser = const String.fromEnvironment('API_USER', defaultValue: 'demo');
   static String basicPass = const String.fromEnvironment('API_PASS', defaultValue: 'demo123');
 
-  // JWT token — set after login/register
+  // JWT token - set after login/register
   static String? _jwtToken;
   static void setToken(String? token) => _jwtToken = token;
 
@@ -71,6 +78,9 @@ class Api {
         'pickup_text': pickup, 'drop_text': drop,
         'distance_km': distanceKm, 'peak': peak,
       }));
+    if (res.statusCode != 200) {
+      throw Exception('Server error ${res.statusCode}');
+    }
     return jsonDecode(res.body);
   }
 

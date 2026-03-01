@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Famba — Restaurant Portal</title>
+<title>Famba - Restaurant Portal</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <style>
 :root{
@@ -117,7 +117,7 @@ textarea{resize:vertical;min-height:60px}
     <a href="#" onclick="page('settings')" id="nav-settings">⚙️ <span>Settings</span></a>
   </nav>
   <div class="bottom">
-    <span id="restaurantName">—</span><br>
+    <span id="restaurantName">-</span><br>
     <a href="#" onclick="logout()" style="color:var(--primary);font-size:12px">Sign out</a>
     <label class="toggle" style="float:right" title="Dark mode">
       <input type="checkbox" id="themeToggle" onchange="toggleTheme()">
@@ -347,7 +347,7 @@ async function pageRatings() {
   const ratings = data.ratings || [];
   if (!ratings.length) { document.getElementById('ratingsList').innerHTML = '<div class="empty">No ratings yet</div>'; return; }
   document.getElementById('ratingsList').innerHTML = '<div class="card"><table><thead><tr><th>Food</th><th>Delivery</th><th>Comment</th><th>Date</th></tr></thead><tbody>' +
-    ratings.map(r => `<tr><td>${'⭐'.repeat(Math.round(r.food_rating))}</td><td>${r.delivery_rating ? '⭐'.repeat(Math.round(r.delivery_rating)) : '—'}</td><td>${r.comment||'—'}</td><td>${timeAgo(r.created_at)}</td></tr>`).join('') +
+    ratings.map(r => `<tr><td>${'⭐'.repeat(Math.round(r.food_rating))}</td><td>${r.delivery_rating ? '⭐'.repeat(Math.round(r.delivery_rating)) : '-'}</td><td>${r.comment||'-'}</td><td>${timeAgo(r.created_at)}</td></tr>`).join('') +
     '</tbody></table></div>';
 }
 
@@ -400,7 +400,7 @@ function statusBadge(s) {
   return `<span class="badge ${m[s]||'badge-yellow'}">${s}</span>`;
 }
 function timeAgo(iso) {
-  if (!iso) return '—';
+  if (!iso) return '-';
   const d = new Date(iso), now = new Date(), diff = (now - d) / 1000;
   if (diff < 60) return 'just now';
   if (diff < 3600) return Math.floor(diff/60) + 'm ago';

@@ -177,8 +177,7 @@
     <main class="main" id="main-content"></main>
 
     <script>
-    const API = (location.hostname === 'localhost' || location.hostname === '127.0.0.1')
-      ? 'http://localhost:8000' : 'https://famba-api.onrender.com';
+    const API = 'http://localhost:8000';
     const AUTH = 'Basic ' + btoa('demo:demo123');
 
     async function apiFetch(endpoint, opts = {}) {

@@ -99,7 +99,7 @@ app = FastAPI(
     debug=settings.debug,
 )
 
-# CORS — restrict in production, allow all in dev
+# CORS - restrict in production, allow all in dev
 _cors_origins = settings.cors_origins.split(",")
 app.add_middleware(
     CORSMiddleware,
@@ -1447,7 +1447,7 @@ def restaurant_ratings(restaurant_id: str, _auth=Depends(require_auth)):
 
 # ==================== WEBSOCKET ====================
 
-# Driver location tracker — riders subscribe to watch a driver
+# Driver location tracker - riders subscribe to watch a driver
 class DriverTracker:
     def __init__(self):
         self.subscribers: Dict[str, Set[WebSocket]] = {}  # driver_id -> watchers
@@ -1484,7 +1484,7 @@ class DriverTracker:
 driver_tracker = DriverTracker()
 
 
-# Chat WebSocket — riders and drivers join a room
+# Chat WebSocket - riders and drivers join a room
 class ChatRoom:
     def __init__(self):
         self.rooms: Dict[str, Set[WebSocket]] = {}

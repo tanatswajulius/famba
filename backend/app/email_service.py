@@ -44,7 +44,7 @@ def welcome_email(name: str) -> tuple:
     subject = "Welcome to Famba! 🏍️"
     body = f"""
     <h2>Hey {name}!</h2>
-    <p>Welcome to <strong>Famba</strong> — the fastest way to get around Harare.</p>
+    <p>Welcome to <strong>Famba</strong>, the fastest way to get around Harare.</p>
     <p>Whether you need a motorcycle ride across town or food delivered to your door, we've got you covered.</p>
     <a class="btn" href="https://famba.app">Open Famba</a>
     <p>Questions? Just reply to this email.</p>
@@ -53,7 +53,7 @@ def welcome_email(name: str) -> tuple:
 
 
 def ride_receipt_email(name: str, ride: dict) -> tuple:
-    subject = f"Your Famba ride receipt — ${ride.get('fare_usd', 0):.2f}"
+    subject = f"Your Famba ride receipt - ${ride.get('fare_usd', 0):.2f}"
     body = f"""
     <h2>Ride complete</h2>
     <p>Thanks for riding with Famba, {name}!</p>
@@ -71,7 +71,7 @@ def ride_receipt_email(name: str, ride: dict) -> tuple:
 
 
 def food_order_receipt_email(name: str, order: dict) -> tuple:
-    subject = f"Your Famba food order — ${order.get('total', 0):.2f}"
+    subject = f"Your Famba food order - ${order.get('total', 0):.2f}"
     items_html = "".join(
         f"<tr><td>{it.get('name','')}</td><td>×{it.get('qty',1)}</td>"
         f"<td>${it.get('price',0):.2f}</td></tr>"
@@ -96,7 +96,7 @@ def food_order_receipt_email(name: str, order: dict) -> tuple:
 
 def dispute_update_email(name: str, dispute: dict) -> tuple:
     status = dispute.get("status", "updated")
-    subject = f"Dispute {status} — Famba"
+    subject = f"Dispute {status} - Famba"
     body = f"""
     <h2>Dispute {status}</h2>
     <p>Hi {name},</p>
@@ -112,7 +112,7 @@ def dispute_update_email(name: str, dispute: dict) -> tuple:
 
 
 def driver_verified_email(name: str) -> tuple:
-    subject = "You're verified! 🎉 — Famba"
+    subject = "You're verified! - Famba"
     body = f"""
     <h2>Congratulations, {name}!</h2>
     <p>All your documents have been reviewed and approved. You're now a verified Famba driver.</p>
@@ -123,7 +123,7 @@ def driver_verified_email(name: str) -> tuple:
 
 
 def password_reset_email(name: str, reset_code: str) -> tuple:
-    subject = "Password reset — Famba"
+    subject = "Password reset - Famba"
     body = f"""
     <h2>Password reset request</h2>
     <p>Hi {name}, use the code below to reset your password:</p>

@@ -270,7 +270,7 @@ class _FoodOrderTrackingScreenState extends State<FoodOrderTrackingScreen> {
                     return Padding(
                       padding: const EdgeInsets.only(bottom: 6),
                       child: Text(
-                        '$name × $qty — \$${(price * qty).toStringAsFixed(2)}',
+                        '$name x$qty - \$${(price * qty).toStringAsFixed(2)}',
                         style: Theme.of(context).textTheme.bodyMedium,
                       ),
                     );
@@ -335,7 +335,7 @@ class _FoodOrderTrackingScreenState extends State<FoodOrderTrackingScreen> {
                     Icon(Icons.schedule, color: FambaColors.primaryDark),
                     const SizedBox(width: 12),
                     Text(
-                      'Estimated delivery: ~$estimatedMin min',
+                      'Estimated delivery: $estimatedMin min',
                       style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                             fontWeight: FontWeight.w600,
                             color: FambaColors.primaryDark,

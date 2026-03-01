@@ -2,9 +2,16 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 class DriverApi {
-  static String base = const String.fromEnvironment(
-    'API_BASE', defaultValue: 'http://localhost:8000',
-  );
+  static String base = _resolveBase();
+
+  static String _resolveBase() {
+    const env = String.fromEnvironment('API_BASE');
+    if (env.isNotEmpty) return env;
+    if (Uri.base.host == 'localhost' || Uri.base.host == '127.0.0.1') {
+      return 'http://localhost:8000';
+    }
+    return 'https://famba-api.onrender.com';
+  }
   static String basicUser = const String.fromEnvironment('API_USER', defaultValue: 'demo');
   static String basicPass = const String.fromEnvironment('API_PASS', defaultValue: 'demo123');
 

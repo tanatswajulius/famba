@@ -338,13 +338,13 @@ class _TrackingScreenState extends State<TrackingScreen>
   String _getEtaLabel() {
     switch (job?.status) {
       case "driver_assigned":
-        return "~3 min";
+        return "3 min";
       case "enroute":
-        return "~2 min";
+        return "2 min";
       case "arrived":
         return "Now";
       case "riding":
-        return "~5 min";
+        return "5 min";
       case "complete":
         return "Done";
       default:

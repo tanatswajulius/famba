@@ -60,7 +60,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
         },
         onDone: () {
           if (mounted) setState(() => _wsConnected = false);
-          // Retry with exponential backoff — WebSocket is optional
+          // Retry after delay - WebSocket is optional
           Future.delayed(const Duration(seconds: 30), () {
             if (mounted) _connectWebSocket();
           });

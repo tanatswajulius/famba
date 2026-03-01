@@ -433,7 +433,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                           const SizedBox(width: 10),
                           Text(
                             _estimate != null
-                                ? "Find a ride • ~\$${(_estimate!['estimate_usd'] ?? 0).toStringAsFixed(2)}"
+                                ? "Find a ride - \$${(_estimate!['estimate_usd'] ?? 0).toStringAsFixed(2)}"
                                 : "Find a ride",
                             style: const TextStyle(
                               fontSize: 17,
