@@ -15,11 +15,13 @@ class DriverProfileScreen extends StatelessWidget {
             title: const Text('Profile'),
             leading: IconButton(
               onPressed: () => Navigator.pop(context),
+              tooltip: 'Go back',
               icon: const Icon(Icons.arrow_back),
             ),
             actions: [
               IconButton(
                 onPressed: () {},
+                tooltip: 'Settings',
                 icon: const Icon(Icons.settings),
               ),
             ],

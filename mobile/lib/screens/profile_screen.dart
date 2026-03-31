@@ -46,6 +46,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         backgroundColor: Colors.transparent,
         leading: IconButton(
           onPressed: () => Navigator.pop(context),
+          tooltip: 'Go back',
           icon: Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(

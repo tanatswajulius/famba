@@ -52,6 +52,16 @@ class FambaDriverApp extends StatelessWidget {
     return MaterialApp(
       title: 'Famba Driver',
       debugShowCheckedModeBanner: false,
+      builder: (context, child) {
+        return MediaQuery(
+          data: MediaQuery.of(context).copyWith(
+            textScaler: MediaQuery.of(context).textScaler.clamp(
+              minScaleFactor: 0.8, maxScaleFactor: 1.4,
+            ),
+          ),
+          child: child!,
+        );
+      },
       theme: ThemeData(
         useMaterial3: true,
         brightness: Brightness.dark,
