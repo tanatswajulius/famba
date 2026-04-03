@@ -18,7 +18,6 @@ class DriverHomeScreen extends StatefulWidget {
 class _DriverHomeScreenState extends State<DriverHomeScreen> {
   Timer? _mockRequestTimer;
   WebSocketChannel? _wsChannel;
-  bool _wsConnected = false;
   bool _modalShowing = false;
 
   @override
@@ -53,13 +52,9 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
           } else if (type == 'delivery_request' && state.isOnline && !state.isBusy) {
             state.receiveDeliveryRequest(DeliveryRequest.fromJson(data['data']));
           }
-          if (mounted) setState(() => _wsConnected = true);
         },
-        onError: (_) {
-          if (mounted) setState(() => _wsConnected = false);
-        },
+        onError: (_) {},
         onDone: () {
-          if (mounted) setState(() => _wsConnected = false);
           // Retry after delay - WebSocket is optional
           Future.delayed(const Duration(seconds: 30), () {
             if (mounted) _connectWebSocket();
