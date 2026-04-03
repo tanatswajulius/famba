@@ -34,12 +34,10 @@ class _TrackingScreenState extends State<TrackingScreen>
   Job? job;
   Timer? timer;
   bool _hasRated = false;
-  double _sheetSize = 0.4;
-  
+
   // WebSocket and Route
   StreamSubscription? _wsSubscription;
   List<LatLng> _routePoints = [];
-  bool _useWebSocket = true;
   bool _routeLoaded = false;
 
   bool _initialized = false;
@@ -83,8 +81,6 @@ class _TrackingScreenState extends State<TrackingScreen>
         }
       }
     }, onError: (e) {
-      // Fall back to polling on WebSocket error
-      _useWebSocket = false;
       timer = Timer.periodic(const Duration(seconds: 2), (_) => _poll());
     });
   }

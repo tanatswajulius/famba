@@ -10,7 +10,6 @@ class SavedPlacesScreen extends StatefulWidget {
 
 class _SavedPlacesScreenState extends State<SavedPlacesScreen> {
   List<Map<String, dynamic>> _places = [];
-  bool _loading = true;
 
   @override
   void initState() {
@@ -44,7 +43,6 @@ class _SavedPlacesScreenState extends State<SavedPlacesScreen> {
             {"id": "0", "name": "Work", "address": "Add your work address", "icon": Icons.work_rounded, "type": "work"},
           ];
         }
-        _loading = false;
       });
     } catch (_) {
       if (!mounted) return;
@@ -53,7 +51,6 @@ class _SavedPlacesScreenState extends State<SavedPlacesScreen> {
           {"id": "0", "name": "Home", "address": "Add your home address", "icon": Icons.home_rounded, "type": "home"},
           {"id": "0", "name": "Work", "address": "Add your work address", "icon": Icons.work_rounded, "type": "work"},
         ];
-        _loading = false;
       });
     }
   }
