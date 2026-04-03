@@ -1,157 +1,208 @@
-# Famba Prototype
+# Famba
 
-A ride-hailing mobile app prototype built with Flutter and FastAPI.
+A motorcycle ride-hailing and food delivery platform built with Flutter and FastAPI, designed for Harare, Zimbabwe.
 
 ## Features
 
-### 1. Trust & Safety
-- **SOS Emergency Button**: Available on tracking screen for rider safety
-- **Issue Reporting**: Backend endpoint to handle safety reports
+### Ride Hailing
+- **Instant Quotes** — corridor-based pricing with surge multiplier support
+- **Multi-Stop Rides** — add intermediate stops to any trip
+- **Scheduled Rides** — book rides in advance
+- **Live Tracking** — real-time job status updates over WebSocket
+- **OSRM Routing** — server-side route geometry and ETA via Project OSRM
+- **Geofencing** — service-area validation for the Harare metro
 
-### 2. Offline Reliability
-- **Offline Queue**: Automatically queues failed requests when offline
-- **Auto-Retry**: Reconnects and retries queued requests when back online
-- **Persistent Storage**: Uses SharedPreferences for local data persistence
+### Food Delivery
+- **Restaurant Browsing** — search, filter, and view menus
+- **Cart & Ordering** — full cart flow with scheduled order support
+- **Order Tracking** — real-time status updates for food orders
+- **Restaurant Portal** — owner dashboard with order management, menu CRUD, and stats
 
-### 3. Driver Matching
-- **Smart Recommendations**: Driver recommendations based on corridor
-- **Top Driver Display**: Shows best-matched driver on quote screen
+### Driver App
+- **Ride Requests** — accept/reject incoming jobs
+- **Turn-by-Turn Navigation** — map-based route to pickup and drop-off
+- **Delivery Mode** — separate flow for food delivery jobs
+- **Earnings Dashboard** — per-ride breakdown and leaderboard
+- **Live Location** — GPS broadcast to riders via WebSocket
 
-### 4. Full-Screen Splash
-- **Native Splash Screen**: Displays Famba logo on app launch
-- **Cross-Platform**: Supports iOS, Android, and Web
+### Payments & Wallet
+- **In-App Wallet** — top-up, pay, and view transaction history
+- **Promo Codes** — validation and discount application
+- **Referral Program** — generate codes, track sign-ups, earn credit
+- **Driver Withdrawals** — request and admin-process payouts
 
-### 5. UX Polish
-- **Modern UI**: Clean design with Famba green theme
-- **Responsive Buttons**: Disabled states and loading indicators
-- **Safety Indicators**: Helmet check badge on driver profile
-- **Error Handling**: User-friendly error messages with retry options
-- **Consistent Styling**: Rounded corners, proper spacing, Material 3
+### Trust & Safety
+- **SOS Emergency Button** — one-tap alert on the tracking screen
+- **Issue Reporting** — structured safety reports submitted to the backend
+- **Helmet Check Badge** — driver safety indicator on the quote screen
+- **Dispute System** — raise and resolve ride/order disputes
 
-## Setup Instructions
+### Offline Reliability
+- **Offline Queue** — failed requests are queued automatically when connectivity drops
+- **Auto-Retry** — queued requests replay when the network returns
+- **Persistent Storage** — local state backed by SharedPreferences
+
+### Platform
+- **JWT Authentication** — register, login, refresh, logout with token rotation
+- **In-App Chat** — REST + WebSocket messaging between rider and driver
+- **Receipts** — HTML ride and food-order receipts
+- **Admin Panel** — user management, stats, CSV exports, role assignment, app version config
+- **Rate Limiting** — in-memory middleware with stricter limits on auth/OTP routes
+- **Email Service** — SMTP-based transactional emails (OTP, receipts, alerts)
+
+## Tech Stack
+
+| Layer | Technology |
+|-------|------------|
+| Rider App | Flutter (Dart >= 3.5), Provider, flutter\_map, connectivity\_plus |
+| Driver App | Flutter (Dart >= 3.5), Provider, geolocator, permission\_handler |
+| Backend | FastAPI, Uvicorn, Pydantic v2 |
+| Database | SQLAlchemy 2.x — SQLite (dev) / PostgreSQL (prod) |
+| Auth | JWT (python-jose), passlib, HTTP Basic fallback |
+| Realtime | WebSockets (tracking, driver location, chat, dispatch) |
+| Routing | OSRM via httpx |
+| Cache | Redis (optional) |
+| CI/CD | GitHub Actions — pytest, flutter analyze/test, web deploy to GitHub Pages |
+| Hosting | Render (API), GitHub Pages (Flutter web builds) |
+| Container | Docker + docker-compose (Postgres, Redis, API, Nginx admin) |
+
+## Setup
 
 ### Backend
 
-1. Navigate to the backend directory:
 ```bash
 cd backend
-```
-
-2. Install dependencies:
-```bash
 pip install -r requirements.txt
+cp env.example .env          # defaults: BASIC_USER=demo, BASIC_PASS=demo123
+./run_local.sh               # or: uvicorn app.main:app --reload
 ```
 
-3. Copy env file and set your credentials (defaults are fine for local):
-```bash
-cp env.example .env
-```
+API available at `http://localhost:8000`. Interactive docs at `/docs`.
 
-4. Run the backend:
-```bash
-./run_local.sh
-# or manual:
-uvicorn app.main:app --reload
-```
+For production configuration see `env.production.example`.
 
-The API will be available at `http://localhost:8000`
+### Rider App
 
-### Mobile App
-
-1. Navigate to the mobile directory:
 ```bash
 cd mobile
-```
-
-2. (Optional) Copy web env file for convenience:
-```bash
-cp env.web.example .env.web
-```
-
-3. Install Flutter dependencies:
-```bash
 flutter pub get
-```
-
-4. Generate splash screen assets:
-```bash
 flutter pub run flutter_native_splash:create
-```
-
-5. Run the app (web/Chrome):
-```bash
 ./run_web.sh
-# or manual
-flutter run -d chrome --dart-define API_BASE=http://localhost:8000 --dart-define API_USER=demo --dart-define API_PASS=demo123
+# or manually:
+flutter run -d chrome \
+  --dart-define=API_BASE=http://localhost:8000 \
+  --dart-define=API_USER=demo \
+  --dart-define=API_PASS=demo123
 ```
 
-6. Run on mobile devices:
+### Driver App
+
 ```bash
-flutter run
-# or for web
-flutter run -d chrome
+cd driver
+flutter pub get
+flutter run -d chrome --dart-define=API_BASE=http://localhost:8000
 ```
 
-## API Endpoints
+### Docker (full stack)
 
-- `GET /health` - Health check
-- `POST /quote` - Get price quote for a ride
-- `POST /jobs` - Create a new ride job
-- `GET /jobs/{job_id}` - Get job status
-- `GET /jobs` - List all jobs
-- `POST /issues` - Report a safety issue
-- `POST /recommend` - Get recommended drivers for a corridor
+```bash
+docker-compose up --build
+```
+
+Starts PostgreSQL, Redis, and the API. The backend is exposed on port `8000`.
+
+## API Overview
+
+### Auth & Users
+`POST /auth/register` · `POST /auth/login` · `POST /auth/refresh` · `POST /auth/logout` · `GET /auth/me` · `PUT /users/me`
+
+### Rides
+`POST /quote` · `POST /jobs` · `GET /jobs` · `GET /jobs/{id}` · `POST /jobs/{id}/cancel` · `POST /jobs/schedule` · `POST /jobs/multi-stop` · `POST /estimate` · `GET /route`
+
+### Food
+`GET /restaurants` · `GET /restaurants/search` · `GET /restaurants/{id}` · `GET /restaurants/{id}/menu` · `POST /food-orders` · `GET /food-orders` · `GET /food-orders/{id}` · `POST /food-orders/{id}/cancel` · `POST /food-orders/schedule`
+
+### Wallet
+`GET /wallet/balance` · `POST /wallet/top-up` · `POST /wallet/pay` · `GET /wallet/transactions`
+
+### Drivers
+`GET /drivers` · `POST /drivers/{id}/location` · `GET /drivers/{id}/earnings` · `GET /drivers/earnings/leaderboard` · `POST /drivers/{id}/withdraw`
+
+### Chat
+`POST /chat/send` · `GET /chat/history`
+
+### WebSockets
+`WS /ws/track/{job_id}` · `WS /ws/driver/{driver_id}` · `WS /ws/chat/{room_id}` · `WS /ws/driver`
+
+### Other
+`POST /issues` · `POST /recommend` · `POST /ratings` · `POST /promo/validate` · `POST /referrals/create` · `GET /referrals/{code}` · `POST /otp/send` · `POST /otp/verify` · `GET /geofence/service-area` · `GET /receipts/ride/{id}` · `GET /receipts/food/{id}` · `POST /disputes` · `GET /history` · `GET /health`
+
+### Admin
+`GET /admin/stats` · `GET /admin/users` · `GET /admin/staff` · `POST /admin/users/{id}/role` · `GET /admin/export/rides` · `GET /admin/export/users` · `POST /admin/app/version`
+
+Full interactive documentation is auto-generated at `/docs` when the backend is running.
 
 ## Project Structure
 
 ```
-famba-prototype/
+famba/
 ├── backend/
 │   ├── app/
-│   │   ├── main.py          # FastAPI app & routes
-│   │   ├── schemas.py       # Pydantic models
-│   │   ├── recommend.py     # Pricing & corridor logic
-│   │   ├── store.py         # In-memory data store
-│   │   └── simulator.py     # Job status simulation
-│   └── requirements.txt
-└── mobile/
-    ├── lib/
-    │   ├── core/
-    │   │   ├── api.dart           # API client
-    │   │   ├── app_state.dart     # App state management
-    │   │   └── offline_queue.dart # Offline request queue
-    │   ├── models/
-    │   │   └── job.dart           # Job model
-    │   ├── screens/
-    │   │   ├── home_screen.dart    # Home screen
-    │   │   ├── login_screen.dart   # Login/splash screen
-    │   │   ├── quote_screen.dart   # Quote display
-    │   │   ├── tracking_screen.dart # Live tracking
-    │   │   └── wallet_screen.dart  # Wallet placeholder
-    │   ├── widgets/
-    │   │   └── sos_button.dart    # SOS emergency button
-    │   └── main.dart
-    └── pubspec.yaml
+│   │   ├── main.py            # FastAPI routes & middleware
+│   │   ├── auth.py            # JWT + Basic auth
+│   │   ├── config.py          # pydantic-settings config
+│   │   ├── database.py        # SQLAlchemy engine & session
+│   │   ├── models.py          # ORM models
+│   │   ├── schemas.py         # Pydantic request/response schemas
+│   │   ├── recommend.py       # Pricing & corridor logic
+│   │   ├── routing.py         # OSRM integration
+│   │   ├── simulator.py       # Job status progression
+│   │   ├── store.py           # In-memory helpers
+│   │   ├── ratings.py         # Rating logic
+│   │   ├── email_service.py   # SMTP email
+│   │   └── rate_limit.py      # Rate-limiting middleware
+│   ├── tests/
+│   ├── Dockerfile
+│   ├── requirements.txt
+│   ├── env.example
+│   └── env.production.example
+├── mobile/                     # Rider Flutter app
+│   ├── lib/
+│   │   ├── core/              # API client, state, offline queue, WebSocket, routing
+│   │   ├── models/            # Data models
+│   │   ├── screens/           # Home, quote, tracking, wallet, food, chat, history…
+│   │   └── widgets/           # SOS button, location search, ride preferences…
+│   ├── pubspec.yaml
+│   └── run_web.sh
+├── driver/                     # Driver Flutter app
+│   ├── lib/
+│   │   ├── core/              # Driver API client & state
+│   │   └── screens/           # Login, home, ride requests, navigation, earnings…
+│   └── pubspec.yaml
+├── docs/                       # GitHub Pages (auto-deployed web builds)
+│   ├── app/                   # Rider web build
+│   └── driver/                # Driver web build
+├── docker-compose.yml
+├── render.yaml                 # Render deploy config
+└── .github/workflows/ci.yml
 ```
+
+## CI/CD
+
+The GitHub Actions workflow (`.github/workflows/ci.yml`) runs on every push and PR to `main`:
+
+1. **Backend tests** — Python 3.11, `pytest`
+2. **Flutter analyze & test** — both rider and driver apps
+3. **Deploy** (main only) — builds Flutter web for both apps with `API_BASE=https://famba-api.onrender.com` and commits to `docs/`
 
 ## Color Scheme
 
-The app uses **Famba Green** (#8BD17C / Color(0xFF8BD17C)) as the primary color with Material 3 theming.
+Primary color: **Famba Green** `#8BD17C` / `Color(0xFF8BD17C)` with Material 3 theming.
 
 ## Notes
 
-- This is a **prototype** with mock data and in-memory storage
-- No actual payment processing or real-time GPS tracking
-- The offline queue persists requests locally until connectivity returns
-- Splash screen configuration is in `pubspec.yaml` under `flutter_native_splash`
-
-## Future Enhancements
-
-- Real-time GPS tracking with maps API
-- Payment integration with Famba Card
-- Push notifications for ride updates
-- Driver app counterpart
-- Production database (PostgreSQL/MongoDB)
-- Authentication & authorization
-- End-to-end encryption for sensitive data
-
+- This is a **prototype** — mock data is used for simulations and some external integrations are stubbed
+- SQLite is the default database for local development; PostgreSQL is used in production
+- The offline queue persists failed requests locally until connectivity returns
+- WebSocket auth for job tracking uses a `token` query parameter (`user:pass` format)
+- Refresh tokens are held in server memory and do not survive restarts
