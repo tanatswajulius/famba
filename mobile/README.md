@@ -1,16 +1,45 @@
-# famba_rider
+# Famba Rider
 
-A new Flutter project.
+Flutter app for riders — request motorcycle rides and order food delivery in Harare.
 
-## Getting Started
+## Quick Start
 
-This project is a starting point for a Flutter application.
+```bash
+flutter pub get
+flutter pub run flutter_native_splash:create
 
-A few resources to get you started if this is your first Flutter project:
+# Run on web (with local backend)
+./run_web.sh
 
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
+# Or manually
+flutter run -d chrome \
+  --dart-define=API_BASE=http://localhost:8000 \
+  --dart-define=API_USER=demo \
+  --dart-define=API_PASS=demo123
+```
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+## Environment
+
+Copy the example env file for web builds:
+
+```bash
+cp env.web.example .env.web
+```
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `API_BASE` | `http://localhost:8000` | Backend URL |
+| `API_USER` | `demo` | Basic auth username |
+| `API_PASS` | `demo123` | Basic auth password |
+
+## Structure
+
+```
+lib/
+├── core/           # API client, app state, offline queue, WebSocket, routing
+├── models/         # Data models
+├── screens/        # All app screens (home, quote, tracking, wallet, food, chat…)
+└── widgets/        # Reusable components (SOS button, location search…)
+```
+
+See the [root README](../README.md) for full project documentation.

@@ -9,7 +9,6 @@ import 'screens/home_screen.dart';
 import 'screens/quote_screen.dart';
 import 'screens/tracking_screen.dart';
 import 'screens/wallet_screen.dart';
-import 'screens/trip_history_screen.dart';
 import 'screens/profile_screen.dart';
 import 'screens/receipt_screen.dart';
 import 'screens/saved_places_screen.dart';

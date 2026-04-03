@@ -1,16 +1,20 @@
-# famba_driver
+# Famba Driver
 
-A new Flutter project.
+Flutter app for drivers — accept rides, navigate to passengers, and manage earnings.
 
-## Getting Started
+## Quick Start
 
-This project is a starting point for a Flutter application.
+```bash
+flutter pub get
+flutter run -d chrome --dart-define=API_BASE=http://localhost:8000
+```
 
-A few resources to get you started if this is your first Flutter project:
+## Structure
 
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
+```
+lib/
+├── core/           # Driver API client & state management
+└── screens/        # Login, home, ride requests, navigation, earnings, profile
+```
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+See the [root README](../README.md) for full project documentation.

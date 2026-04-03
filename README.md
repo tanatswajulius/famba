@@ -157,8 +157,6 @@ famba/
 │   │   ├── recommend.py       # Pricing & corridor logic
 │   │   ├── routing.py         # OSRM integration
 │   │   ├── simulator.py       # Job status progression
-│   │   ├── store.py           # In-memory helpers
-│   │   ├── ratings.py         # Rating logic
 │   │   ├── email_service.py   # SMTP email
 │   │   └── rate_limit.py      # Rate-limiting middleware
 │   ├── tests/

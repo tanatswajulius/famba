@@ -1,1 +1,2 @@
-#!/usr/bin/env bash\nuvicorn app.main:app --reload --port 8000\n
+#!/usr/bin/env bash
+uvicorn app.main:app --reload --port 8000
